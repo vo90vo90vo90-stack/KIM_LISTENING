@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+<meta name="theme-color" content="#f2f4f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#17171c" media="(prefers-color-scheme: dark)">
+<title>듣기 받아쓰기</title>
+<!--
+  듣기 받아쓰기 (개인용 단일 HTML 앱)
+  사용법
+   1) 이 파일을 폰에 저장하고 크롬/삼성 인터넷으로 열어요.
+   2) [영상] 탭 → "영상 만들기"에서 유튜브 링크와 문장(시작|종료|영어|한글)을 붙여넣어요.
+   3) 문장을 눌러 듣고, 칸에 받아쓰기를 하고 채점해요.
+  주의
+   - 영상 재생은 유튜브 공식 플레이어를 쓰기 때문에 인터넷이 필요해요. (외부 코드는 이것 하나뿐)
+   - 데이터는 이 브라우저에 저장돼요. [설정]에서 정기적으로 JSON 백업을 받아두세요.
+-->
+<style>
+/* ===== 테마 (변수 10개) ===== */
+:root{--bg:#f2f4f6;--c:#fff;--t:#191f28;--s:#8b95a1;--p:#3182f6;--ln:#e5e8eb;--soft:#d6e8ff;--g:#00a77f;--r:#f04452;--o:#f59f00}
+@media(prefers-color-scheme:dark){:root{--bg:#17171c;--c:#212127;--t:#f2f4f6;--s:#9ea4ae;--ln:#30303a;--soft:#1c2b44;--p:#4593fc;--g:#2fc79d;--r:#ff6b78;--o:#ffb340}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--t);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+button:disabled{opacity:.4;cursor:default}
+input,textarea{font:inherit;color:inherit}
+label{display:block;font-size:13px;font-weight:600;color:var(--s);margin:12px 0 6px}
+label:first-child{margin-top:0}
+
+/* ===== 레이아웃 ===== */
+#hd{position:sticky;top:0;z-index:20;display:flex;align-items:center;height:calc(52px + env(safe-area-inset-top));padding:env(safe-area-inset-top) max(6px,env(safe-area-inset-right)) 0 max(6px,env(safe-area-inset-left));background:var(--bg)}
+#hb{display:none;width:44px;height:44px;font-size:30px;line-height:1}
+#hb.on{display:block}
+#ht{flex:1;padding-left:10px;font-size:18px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#ha{display:flex}
+#ha button{min-width:44px;height:44px;padding:0 10px;color:var(--p);font-weight:600;font-size:16px}
+main{padding:4px max(16px,env(safe-area-inset-right)) calc(110px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;background:var(--c);border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:11px;color:var(--s)}
+nav button i{font-style:normal;font-size:20px;filter:grayscale(1);opacity:.7}
+nav button.on{color:var(--p);font-weight:700}
+nav button.on i{filter:none;opacity:1}
+body.nonav nav{display:none}
+#cta{position:fixed;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom));z-index:15;display:flex;gap:8px;padding:14px max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left));background:linear-gradient(rgba(0,0,0,0),var(--bg) 35%)}
+#cta:empty{display:none}
+body.nonav #cta{bottom:0;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+
+/* ===== 공통 컴포넌트 ===== */
+.card{background:var(--c);border:1px solid var(--ln);border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.big{font-size:26px;font-weight:800;line-height:1.3;letter-spacing:-.5px}
+.q{font-size:19px;font-weight:700;margin-bottom:12px;line-height:1.4}
+.sub{font-size:13px;color:var(--s)}
+.grow{flex:1}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn{flex:1;height:54px;border-radius:12px;background:var(--p);color:#fff;font-size:17px;font-weight:700}
+.btn.sec{flex:0 0 auto;padding:0 20px;background:var(--soft);color:var(--p)}
+.btn.mini{flex:1;height:48px;font-size:16px}
+.btn.red{background:var(--r)}
+.chip{height:40px;padding:0 14px;border-radius:20px;background:var(--c);border:1px solid var(--ln);font-size:14px;font-weight:600;color:var(--s)}
+.chip.on{background:var(--soft);border-color:transparent;color:var(--p)}
+.in{width:100%;height:48px;border-radius:12px;border:1px solid var(--ln);background:var(--bg);padding:0 14px;font-size:16px;outline:0}
+.in:focus{border-color:var(--p)}
+textarea.in{height:auto;padding:12px 14px;resize:vertical;line-height:1.5}
+.bar{height:8px;border-radius:4px;background:var(--ln);overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;background:var(--p);border-radius:4px;transition:width .3s}
+.lnk{color:var(--p);font-weight:600;font-size:14px;padding:12px 0 0;text-align:left}
+.warn{display:block;width:100%;text-align:left;padding:14px 16px;border-radius:16px;background:var(--c);border:1px solid var(--o);color:var(--o);font-weight:600;margin-bottom:12px}
+.empty{text-align:center;padding:36px 16px;color:var(--s);line-height:1.7}
+.empty b{display:block;font-size:17px;color:var(--t);margin-bottom:6px}
+.red{color:var(--r)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid2 .card{margin:0}
+.num{font-size:22px;font-weight:800}
+
+/* 목록 카드 */
+.it{display:flex;align-items:center;padding:0;overflow:hidden}
+.tap{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:14px 16px;min-height:60px;text-align:left}
+.tap .tx{flex:1;min-width:0;font-size:15px;font-weight:600}
+.tap .tx small{display:block;font-size:12px;color:var(--s);font-weight:400}
+.no{flex:none;width:28px;height:28px;border-radius:50%;background:var(--bg);color:var(--s);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.no.d{background:var(--p);color:#fff}
+.dots{width:48px;align-self:stretch;color:var(--s);font-size:20px}
+
+/* 홈 주간 */
+.wkb{display:flex;justify-content:space-between;margin:14px 0 4px}
+.wkb div{flex:1;text-align:center;font-size:12px;color:var(--s)}
+.wkb i{display:block;width:26px;height:26px;border-radius:50%;margin:4px auto 0;background:var(--ln)}
+.wkb i.on{background:var(--p)}
+
+/* 영상 플레이어 */
+#ytbox{position:relative;aspect-ratio:16/9;border-radius:16px;overflow:hidden;background:#000;margin-bottom:12px}
+#ytbox::after{content:'영상을 불러오는 중…';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#9aa4ae;font-size:13px;pointer-events:none}
+#ytbox.rd::after{display:none}
+#ytp,#ytbox iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+#ytov{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center}
+#ytov i{font-style:normal;width:56px;height:56px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;font-size:24px;display:flex;align-items:center;justify-content:center;padding-left:4px;transition:opacity .2s}
+#ytbox.pl #ytov i{opacity:0}
+#yte{display:none;position:absolute;inset:0;z-index:3;background:rgba(0,0,0,.86);color:#fff;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;text-align:center;font-size:14px;line-height:1.5}
+#yte a,#yte button{display:inline-block;color:#fff;background:rgba(255,255,255,.18);border-radius:10px;padding:9px 14px;font-size:14px;font-weight:600;text-decoration:none}
+
+/* 받아쓰기 칸 */
+.words{display:flex;flex-wrap:wrap;margin:-4px -2px}
+.wd{display:flex;flex-direction:column;align-items:center;margin:2px}
+.wr{display:flex;align-items:center}
+.wr b{font-size:18px;color:var(--s);font-weight:600}
+.wi{height:46px;border-radius:10px;border:0;background:var(--bg);text-align:center;font-size:18px;padding:0 6px;outline:0;min-width:0;color:var(--t)}
+.wi::placeholder{color:var(--s);opacity:.7}
+.wi:focus{background:var(--c);box-shadow:inset 0 0 0 2px var(--p)}
+.wi.ok{background:var(--soft);color:var(--p);font-weight:700;animation:pop .28s}
+.wi.bad{background:var(--c);box-shadow:inset 0 0 0 2px var(--r);color:var(--r)}
+.wi.rv{background:var(--c);box-shadow:inset 0 0 0 2px var(--o);color:var(--o);font-weight:700}
+.wk{font-size:12px;color:var(--s);height:28px;padding:4px 6px;font-weight:600}
+@keyframes pop{50%{transform:scale(1.08)}}
+.row2{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.en{font-size:19px;font-weight:700;line-height:1.5;margin-bottom:6px}
+.ko{font-size:16px;color:var(--t);line-height:1.6;margin-bottom:6px}
+
+/* 캘린더 */
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+.cal .w7{font-size:12px;color:var(--s);padding:6px 0}
+.cd{aspect-ratio:1;border-radius:50%;font-size:14px;display:flex;align-items:center;justify-content:center}
+.cd.has{background:var(--soft);color:var(--p);font-weight:800}
+.cd.goal{background:var(--p);color:#fff}
+.cd.today{text-decoration:underline;text-underline-offset:4px;font-weight:800}
+.cd.sel{outline:2px solid var(--t);outline-offset:1px}
+.mnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.mnav button{width:44px;height:44px;font-size:24px}
+.mnav b{font-size:17px}
+
+/* 만들기 미리보기 */
+.pv{font-size:13px}
+.pv .r{display:flex;gap:8px;padding:9px 0;border-top:1px solid var(--ln);align-items:flex-start}
+.pv .r:first-child{border-top:0}
+.pv .r button{flex:none;width:36px;height:36px;border-radius:50%;background:var(--soft);color:var(--p);font-size:13px}
+.pv .tm{font-size:12px;color:var(--s)}
+.pv .e{font-weight:600;font-size:14px;word-break:break-word}
+.pv .er{color:var(--r);font-weight:600}
+.fmt{font:13px/1.6 ui-monospace,Consolas,monospace;background:var(--bg);border-radius:10px;padding:10px 12px;color:var(--s);margin:8px 0}
+#mk-tpl{font:13px/1.6 ui-monospace,Consolas,monospace;min-height:150px}
+
+/* 시트 / 토스트 */
+#mk{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.45);display:none;align-items:flex-end}
+#mk.on{display:flex}
+#sh{width:100%;max-height:88vh;overflow:auto;background:var(--c);border-radius:22px 22px 0 0;padding:20px max(16px,env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));animation:up .22s ease}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+.sh-t{font-size:17px;font-weight:700;margin-bottom:12px;line-height:1.4}
+.mi{display:flex;align-items:center;gap:10px;width:100%;height:52px;padding:0 6px;font-size:16px;text-align:left;border-radius:12px}
+.mi:active{background:var(--bg)}
+#ts{position:fixed;left:16px;right:16px;bottom:calc(130px + env(safe-area-inset-bottom));z-index:60;display:none;align-items:center;gap:12px;padding:13px 16px;border-radius:12px;background:#333d4b;color:#fff;font-size:14px}
+#ts.on{display:flex}
+#ts button{margin-left:auto;color:#6ab0ff;font-weight:700}
+.foot{text-align:center;font-size:12px;color:var(--s);padding:8px 0 0;line-height:1.6}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header id="hd"><button id="hb" data-a="back" aria-label="뒤로">‹</button><div id="ht"></div><div id="ha"></div></header>
+<main id="app"></main>
+<div id="cta"></div>
+<nav id="nav">
+  <button data-a="tab" data-h="#/" data-t="home"><i>🏠</i>홈</button>
+  <button data-a="tab" data-h="#/vids" data-t="vids"><i>🎬</i>영상</button>
+  <button data-a="tab" data-h="#/fav" data-t="fav"><i>⭐</i>복습</button>
+  <button data-a="tab" data-h="#/log" data-t="log"><i>📅</i>기록</button>
+  <button data-a="tab" data-h="#/set" data-t="set"><i>⚙️</i>설정</button>
+</nav>
+<div id="mk" data-a="mclose"><div id="sh"></div></div>
+<div id="ts"></div>
+<input type="file" id="fi" accept=".json,application/json" hidden>
+
+<script>
+/* ===== 유틸 ===== */
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const N=v=>Number(v)||0;
+const fm=n=>N(n).toLocaleString('ko-KR');
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const ymd=(d=new Date())=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const pd=s=>{const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
+const dayDiff=(a,b)=>Math.round((pd(a)-pd(b))/864e5);
+const nz=s=>String(s||'').toLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+
+/* 시간 "1:23.5" ⇄ 초 */
+function pT(s){
+  s=String(s).trim().replace(/：/g,':');
+  if(!/^\d+(:\d{1,2}){0,2}(\.\d+)?$/.test(s))return NaN;
+  let t=0;for(const x of s.split(':'))t=t*60+Number(x);return t;
+}
+function fT(t){
+  const x=Math.round(Math.max(0,t)*10),m=Math.floor(x/600),r=(x%600)/10;
+  return m+':'+(r<10?'0':'')+(Number.isInteger(r)?r:r.toFixed(1));
+}
+/* 유튜브 링크 → 영상 ID */
+function ytId(u){
+  u=String(u||'').trim();
+  if(/^[\w-]{11}$/.test(u))return u;
+  const m=u.match(/(?:youtu\.be\/|[?&]v=|\/(?:embed|shorts|live|v)\/)([\w-]{11})/);
+  return m?m[1]:'';
+}
+/* 영어 문장 → 단어 조각 (앞뒤 문장부호는 칸 밖에 표시) */
+function toks(e){
+  return String(e||'').trim().split(/\s+/).filter(Boolean).map(w=>{
+    const m=w.match(/^([^\p{L}\p{N}]*)(.*?)([^\p{L}\p{N}]*)$/u);
+    return{pre:m[1],core:m[2],post:m[3]};
+  }).filter(t=>t.core);
+}
+
+/* ===== DB (IndexedDB: cats=영상, items=문장, meta=설정/기록) ===== */
+let db,cats=[],items=[],M={};
+function openDB(){
+  return new Promise((ok,no)=>{
+    const r=indexedDB.open('dictation-db',1);
+    r.onupgradeneeded=()=>{const d=r.result;['cats','items','meta'].forEach(s=>{if(!d.objectStoreNames.contains(s))d.createObjectStore(s,{keyPath:'id'})})};
+    r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);
+  });
+}
+const store=(s,m)=>db.transaction(s,m).objectStore(s);
+const all=s=>new Promise((ok,no)=>{const q=store(s,'readonly').getAll();q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)});
+const put=(s,o)=>new Promise((ok,no)=>{const q=store(s,'readwrite').put(o);q.onsuccess=()=>ok(o);q.onerror=()=>no(q.error)});
+const del=(s,id)=>new Promise((ok,no)=>{const q=store(s,'readwrite').delete(id);q.onsuccess=()=>ok();q.onerror=()=>no(q.error)});
+/* 여러 건을 한 번에 저장/삭제 */
+function bulk(s,puts,dels){
+  return new Promise((ok,no)=>{
+    const t=db.transaction(s,'readwrite'),st=t.objectStore(s);
+    (puts||[]).forEach(o=>st.put(o));(dels||[]).forEach(id=>st.delete(id));
+    t.oncomplete=()=>ok();t.onerror=()=>no(t.error);
+  });
+}
+async function reload(){
+  cats=await all('cats');items=await all('items');M={};
+  (await all('meta')).forEach(r=>M[r.id]=r.v);
+}
+const mput=(id,v)=>{M[id]=v;return put('meta',{id,v})};
+const set=()=>Object.assign({rate:1,loop:false,goal:10,shuf:false},M.set||{});
+const setSave=o=>mput('set',Object.assign(set(),o));
+
+/* 데이터 조회 */
+const vidOf=id=>cats.find(c=>c.id===id);
+const itemOf=id=>items.find(i=>i.id===id);
+const itemsOf=cid=>items.filter(i=>i.cid===cid).sort((a,b)=>a.o-b.o);
+const favs=()=>items.filter(i=>i.fav).sort((a,b)=>(b.fa||0)-(a.fa||0));
+function streak(){
+  const d=M.days||{};let k=new Date();
+  if(!(d[ymd(k)]&&d[ymd(k)].n>0))k.setDate(k.getDate()-1);
+  let n=0;
+  while(d[ymd(k)]&&d[ymd(k)].n>0){n++;k.setDate(k.getDate()-1)}
+  return n;
+}
+function logDay(perfect){
+  const d=M.days||{},k=ymd(),r=d[k]||{n:0,ok:0};
+  r.n++;if(perfect)r.ok++;d[k]=r;mput('days',d);
+}
+function bkDays(){
+  const ref=(M.bk&&M.bk.at)||M.first;
+  return ref?dayDiff(ymd(),ref):0;
+}
+
+/* ===== 토스트 / 시트(모달) ===== */
+let UNDO=null,tmT=0,MOPEN=0,PEND=null;
+function toast(msg,undo){
+  UNDO=undo||null;
+  const t=$('#ts');t.innerHTML='<span>'+esc(msg)+'</span>'+(undo?'<button data-a="undo">되돌리기</button>':'');
+  t.classList.add('on');clearTimeout(tmT);tmT=setTimeout(()=>t.classList.remove('on'),undo?5000:2600);
+}
+function openM(html){
+  $('#sh').innerHTML=html;$('#mk').classList.add('on');
+  if(!MOPEN){history.pushState({d:(history.state&&history.state.d)||0,m:1},'');MOPEN=1}
+}
+function hideM(){MOPEN=0;$('#mk').classList.remove('on');$('#sh').innerHTML=''}
+function closeM(cb){
+  if(MOPEN){PEND=cb||null;history.back()}else if(cb)cb();
+}
+
+/* ===== 유튜브 플레이어 (구간 재생) ===== */
+const PL={p:null,vid:'',ready:false,pending:false,seg:null,loop:false,st:-1,tm:0,t0:0,want:false,errc:0,onLoop:null,onCount:null};
+const ytCbs=[];let ytTag=false;
+function ytApi(ok,fail){
+  if(window.YT&&YT.Player){ok();return}
+  ytCbs.push(ok);
+  if(ytTag)return;
+  ytTag=true;
+  window.onYouTubeIframeAPIReady=()=>ytCbs.splice(0).forEach(f=>f());
+  const s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';
+  s.onerror=()=>{ytTag=false;ytCbs.length=0;fail()};
+  document.head.appendChild(s);
+  setTimeout(()=>{if(!(window.YT&&YT.Player)){ytTag=false;ytCbs.length=0;fail()}},12000);
+}
+PL.host=function(){
+  const b=$('#ytbox');if(!b)return;
+  if(!$('#ytp')){const d=document.createElement('div');d.id='ytp';b.prepend(d)}
+};
+PL.kill=function(){
+  clearInterval(PL.tm);
+  try{PL.p&&PL.p.destroy&&PL.p.destroy()}catch(e){}
+  PL.p=null;PL.ready=false;PL.pending=false;PL.seg=null;PL.pend=null;PL.vid='';PL.st=-1;PL.errc=0;PL.want=false;
+};
+PL.use=function(vid){
+  PL.host();
+  if(!/^https?:$/.test(location.protocol)){PL.vid=vid;PL.fail('file');return}
+  if(PL.pending){PL.vid=vid;return}
+  if(PL.p&&PL.vid!==vid){
+    PL.vid=vid;PL.errc=0;PL.seg=null;
+    const e=$('#yte');if(e)e.style.display='none';
+    if(PL.ready)PL.p.cueVideoById(vid);
+    return;
+  }
+  if(!PL.p)PL.mount(vid);
+};
+PL.mount=function(vid){
+  PL.vid=vid;PL.pending=true;PL.errc=0;
+  ytApi(()=>{
+    PL.pending=false;
+    if(!$('#ytp'))return;
+    const v0=PL.vid;
+    PL.p=new YT.Player('ytp',{
+      videoId:v0,width:'100%',height:'100%',
+      playerVars:{playsinline:1,controls:0,rel:0,modestbranding:1,disablekb:1,fs:0,iv_load_policy:3},
+      events:{
+        onReady:()=>{
+          PL.ready=true;const b=$('#ytbox');b&&b.classList.add('rd');
+          if(PL.vid!==v0)PL.p.cueVideoById(PL.vid);
+          if(PL.pend){const a=PL.pend;PL.pend=null;PL.play.apply(PL,a)}
+        },
+        onStateChange:e=>{
+          PL.st=e.data;
+          const b=$('#ytbox');b&&b.classList.toggle('pl',e.data===1);
+          if(e.data===1&&PL.want){PL.want=false;PL.onCount&&PL.onCount()}
+          if(e.data===0&&PL.seg){
+            if(PL.loop){PL.p.seekTo(PL.seg.st,true);PL.p.playVideo();PL.onLoop&&PL.onLoop()}else PL.seg=null;
+          }
+        },
+        onError:e=>PL.fail(e.data)
+      }
+    });
+    clearInterval(PL.tm);PL.tm=setInterval(PL.tick,60);
+  },()=>{PL.pending=false;PL.fail('net')});
+};
+PL.play=function(st,en,rate,loop){
+  if(PL.errc)return;
+  if(!PL.p||!PL.ready){PL.pend=[st,en,rate,loop];return}
+  PL.seg={st,en};PL.loop=loop;PL.want=true;PL.t0=Date.now();
+  try{PL.p.setPlaybackRate(rate)}catch(e){}
+  PL.p.seekTo(st,true);PL.p.playVideo();
+};
+PL.stop=function(){
+  PL.seg=null;PL.pend=null;
+  try{PL.p&&PL.ready&&PL.p.pauseVideo()}catch(e){}
+};
+PL.tick=function(){
+  if(!PL.p||!PL.ready||!PL.seg||PL.st!==1||Date.now()-PL.t0<300)return;
+  let t;try{t=PL.p.getCurrentTime()}catch(e){return}
+  if(t>=PL.seg.en){
+    if(PL.loop){PL.t0=Date.now();PL.p.seekTo(PL.seg.st,true);PL.onLoop&&PL.onLoop()}
+    else{PL.p.pauseVideo();PL.seg=null}
+  }
+};
+PL.fail=function(code){
+  PL.errc=code||1;PL.pending=false;
+  const e=$('#yte');if(!e)return;
+  const msg=code==='file'?'파일로 열면 유튜브가 영상 재생을 막아요.<br>웹 주소(https)로 열어야 재생돼요.<br><small>설정 > 재생이 안 될 때 참고</small>'
+    :code==='net'?'유튜브 플레이어를 불러오지 못했어요.<br>인터넷 연결을 확인해 주세요.'
+    :(code===101||code===150)?'이 영상은 퍼가기가 막혀 있어서<br>앱 안에서 재생할 수 없어요.'
+    :code===100?'영상을 찾을 수 없어요.<br>링크를 다시 확인해 주세요.'
+    :'영상을 재생하지 못했어요.<br>(파일로 열면 유튜브가 막는 경우도 있어요)';
+  const t=S&&S.sid&&itemOf(S.sid);
+  const link=PL.vid?'https://www.youtube.com/watch?v='+encodeURIComponent(PL.vid)+(t?'&t='+Math.floor(t.st)+'s':''):'';
+  e.innerHTML='<div>'+msg+'</div><div class="row" style="justify-content:center"><button data-a="plretry">다시 시도</button>'+(link?'<a href="'+esc(link)+'" target="_blank" rel="noopener">유튜브에서 열기</a>':'')+'</div>';
+  e.style.display='flex';
+  const b=$('#ytbox');if(b)b.classList.add('rd');
+};
+
+/* ===== 라우터 ===== */
+let SCR={},CURP='#/',S=null,FQ=[];
+const ROUTES=[
+  [/^#\/$/,'home'],[/^#\/vids$/,'vids'],[/^#\/vid\/([^/]+)$/,'vidScr'],
+  [/^#\/study\/([^/]+)\/([^/]+)$/,'studyScr'],[/^#\/make(?:\/([^/]+))?$/,'makeScr'],
+  [/^#\/fav$/,'favScr'],[/^#\/log$/,'logScr'],[/^#\/set$/,'setScr']
+];
+const FN={};
+function route(){
+  PL.kill();
+  const h=location.hash||'#/';
+  for(const[re,name]of ROUTES){
+    const m=h.match(re);
+    if(m){
+      FN[name].apply(null,m.slice(1).map(x=>x==null?x:decodeURIComponent(x)));
+      const tab=/^#\/(vids|vid|study|make)/.test(h)?'vids':/^#\/fav/.test(h)?'fav':/^#\/log/.test(h)?'log':/^#\/set/.test(h)?'set':'home';
+      $$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===tab));
+      scrollTo(0,SCR[h]||0);
+      mput('ui',Object.assign({},M.ui,{route:h}));
+      return;
+    }
+  }
+  goR('#/');
+}
+function go(h){
+  if(h===location.hash){route();return}
+  SCR[location.hash]=scrollY;
+  const d=(history.state&&history.state.d)||0;
+  history.pushState({d:d+1},'',h);SCR[h]=0;route();
+}
+function goR(h){
+  history.replaceState({d:(history.state&&history.state.d)||0},'',h);route();
+}
+function backNav(){
+  const d=(history.state&&history.state.d)||0;
+  if(d>0)history.back();else goR(CURP||'#/');
+}
+function view(title,o){
+  o=o||{};
+  document.body.classList.toggle('nonav',!!o.nonav);
+  $('#ht').textContent=title;
+  $('#hb').classList.toggle('on',!!o.back);
+  $('#ha').innerHTML=o.ha||'';
+  $('#app').innerHTML=o.html||'';
+  $('#cta').innerHTML=o.cta||'';
+  CURP=o.parent||'#/';
+}
+let lastBack=0;
+addEventListener('popstate',e=>{
+  if(MOPEN){hideM();const f=PEND;PEND=null;if(f)f();return}
+  if(e.state&&e.state.base){
+    if(Date.now()-lastBack<2000){history.back();return}
+    lastBack=Date.now();toast('한 번 더 누르면 종료돼요');
+    history.pushState({d:0},'',location.hash);return;
+  }
+  route();
+});
+function saveUI(){mput('ui',Object.assign({},M.ui,{route:location.hash||'#/',scroll:scrollY}))}
+addEventListener('pagehide',saveUI);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveUI()});
+let scT=0;
+addEventListener('scroll',()=>{clearTimeout(scT);scT=setTimeout(()=>{SCR[location.hash]=scrollY},120)},{passive:true});
+
+/* ===== 화면: 홈 ===== */
+FN.home=function(){
+  const k=ymd(),td=(M.days||{})[k]||{n:0},g=set().goal,left=Math.max(0,g-td.n);
+  const st=streak(),fv=favs().length;
+  let h='';
+  if(items.length&&bkDays()>=30)h+='<button class="warn" data-a="go" data-h="#/set">⚠️ 마지막 백업이 '+bkDays()+'일 전이에요. 눌러서 백업해요</button>';
+  h+='<div style="padding:8px 4px 16px"><div class="big">오늘 '+td.n+'문장<br>공부했어요</div>'
+    +'<div class="sub" style="margin-top:6px;font-size:14px">'+(left?'목표까지 '+left+'문장 남았어요':'오늘 목표를 달성했어요 🎉')+'</div>'
+    +'<div class="bar"><i style="width:'+Math.min(100,td.n/g*100)+'%"></i></div>';
+  let wk='';
+  for(let i=6;i>=0;i--){
+    const d=new Date();d.setDate(d.getDate()-i);const r=(M.days||{})[ymd(d)];
+    wk+='<div>'+'일월화수목금토'[d.getDay()]+'<i class="'+(r&&r.n>0?'on':'')+'"></i></div>';
+  }
+  h+='<div class="wkb">'+wk+'</div></div>';
+  h+='<div class="grid2" style="margin-bottom:12px"><div class="card"><div class="sub">연속 학습</div><div class="num">🔥 '+st+'일</div></div>'
+    +'<button class="card" style="text-align:left" data-a="tab" data-h="#/fav"><div class="sub">복습할 문장</div><div class="num">⭐ '+fv+'개</div></button></div>';
+  if(!cats.length){
+    h+='<div class="card empty"><b>아직 학습 영상이 없어요</b>유튜브 링크와 문장을 넣어서<br>나만의 듣기 훈련을 시작해 봐요.<br><br><button class="btn" style="width:100%" data-a="go" data-h="#/make">첫 영상 만들기</button></div>';
+  }else{
+    const r=resume();
+    if(r)h+='<button class="card it tap" style="width:100%" data-a="study" data-ck="'+esc(r.cid)+'" data-id="'+esc(r.id)+'"><span class="no d">▶</span><span class="tx">'+(r.fresh?'학습 시작하기':'이어서 학습하기')+'<small>'+esc(vidOf(r.cid).title)+' · '+esc(r.k||'문장')+'</small></span></button>';
+  }
+  view('듣기 받아쓰기',{html:h});
+};
+function resume(){
+  const last=M.ui&&M.ui.last,li=last&&itemOf(last.sid);
+  if(li&&vidOf(li.cid)){
+    const L=itemsOf(li.cid),i=L.findIndex(x=>x.id===li.id),t=L[i+1]||L[i];
+    return{id:t.id,cid:t.cid,k:t.k};
+  }
+  for(const c of cats){const L=itemsOf(c.id);if(L.length)return{id:L[0].id,cid:c.id,k:L[0].k,fresh:1}}
+  return null;
+}
+
+/* ===== 화면: 영상 목록 ===== */
+FN.vids=function(){
+  let h='';
+  if(!cats.length)h='<div class="card empty"><b>학습 영상을 만들어 볼까요?</b>아래 버튼을 누르고<br>유튜브 링크와 문장을 붙여넣어요.</div>';
+  cats.slice().sort((a,b)=>(b.ts||0)-(a.ts||0)).forEach(c=>{
+    const L=itemsOf(c.id),d=L.filter(i=>i.done).length;
+    h+='<div class="card it"><button class="tap" data-a="go" data-h="#/vid/'+c.id+'"><span class="tx">'+esc(c.title)+'<small>문장 '+L.length+'개 · 완료 '+d+'/'+L.length+'</small>'
+      +'<div class="bar" style="margin-top:8px"><i style="width:'+(L.length?d/L.length*100:0)+'%"></i></div></span></button>'
+      +'<button class="dots" data-a="vmenu" data-id="'+c.id+'">⋯</button></div>';
+  });
+  view('영상',{ha:'<button data-a="pick">가져오기</button>',html:h,cta:'<button class="btn" data-a="go" data-h="#/make">＋ 영상 만들기</button>'});
+};
+
+/* ===== 화면: 문장 목록 ===== */
+FN.vidScr=function(id){
+  const c=vidOf(id);if(!c){goR('#/vids');return}
+  const L=itemsOf(id),d=L.filter(i=>i.done).length;
+  let h='<div class="card"><div class="sub">문장 '+L.length+'개 · 완료 '+d+'개</div><div class="bar"><i style="width:'+(L.length?d/L.length*100:0)+'%"></i></div></div>';
+  if(!L.length)h+='<div class="card empty"><b>문장이 없어요</b>오른쪽 위 "수정"에서 문장을 넣어요.</div>';
+  L.forEach((i,n)=>{
+    h+='<div class="card it"><button class="tap" data-a="study" data-ck="'+id+'" data-id="'+i.id+'"><span class="no '+(i.done?'d':'')+'">'+(i.done?'✓':n+1)+'</span>'
+      +'<span class="tx">'+esc(i.k||'문장 '+(n+1))+(i.ls?'<small>'+i.ls+'번 듣고 맞춤</small>':'')+'</span>'+(i.fav?'<span>⭐</span>':'')+'</button>'
+      +'<button class="dots" data-a="smenu" data-id="'+i.id+'">⋯</button></div>';
+  });
+  const nx=L.find(i=>!i.done)||L[0];
+  view(c.title,{back:1,parent:'#/vids',ha:'<button data-a="go" data-h="#/make/'+id+'">수정</button>',html:h,
+    cta:L.length?'<button class="btn" data-a="study" data-ck="'+id+'" data-id="'+nx.id+'">'+(d?'이어서 학습하기':'학습 시작')+'</button>':''});
+};
+
+/* ===== 화면: 받아쓰기 ===== */
+const cur=()=>itemOf(S.sid);
+FN.studyScr=function(ck,sid){
+  const it=itemOf(sid);
+  const q=ck==='fav'?(FQ.includes(sid)?FQ:favs().map(i=>i.id)):itemsOf(ck).map(i=>i.id);
+  if(!it||!vidOf(it.cid)||!q.includes(sid)){toast('문장을 찾을 수 없어요');goR(ck==='fav'?'#/fav':'#/vids');return}
+  S={ck:ck,q:q};
+  const par=ck==='fav'?'#/fav':'#/vid/'+ck;
+  view('',{back:1,nonav:1,parent:par,
+    ha:'<button data-a="skip" data-d="-1" aria-label="이전 문장">‹</button><button data-a="skip" data-d="1" aria-label="다음 문장">›</button>',
+    html:ytHTML(1)+'<div id="sctl"></div><div id="sbody"></div>',cta:'<div style="display:contents" id="scta"></div>'});
+  PL.onCount=()=>{S.listens++;paintCtl()};
+  PL.onLoop=PL.onCount;
+  studyLoad(sid,false);
+};
+function ytHTML(study){
+  return '<div id="ytbox"><div id="ytp"></div><div id="ytov"'+(study?' data-a="play"':'')+'><i>▶</i></div><div id="yte"></div></div>';
+}
+function studyLoad(sid,foc){
+  const it=itemOf(sid);
+  Object.assign(S,{i:S.q.indexOf(sid),sid:sid,tk:toks(it.e),vals:[],gr:[],st:'in',hint:0,hinted:false,rvd:false,tries:0,missed:false,listens:0,perfect:false});
+  const d=M.draft;if(d&&d.k==='s'&&d.sid===sid&&Array.isArray(d.vals))S.vals=d.vals.slice();
+  PL.use(vidOf(it.cid).vid);
+  paintCtl();paintStudy(foc);
+  const s=set();PL.play(it.st,it.en,s.rate,s.loop);
+}
+function paintCtl(){
+  const s=set(),el=$('#sctl');if(!el)return;
+  el.innerHTML='<div class="row" style="margin-bottom:6px"><button class="btn mini" data-a="play">▶ 듣기</button>'
+    +'<button class="chip '+(s.loop?'on':'')+'" data-a="loop">🔁 반복</button></div>'
+    +'<div class="row" style="margin-bottom:12px"><span class="sub">🎧 '+S.listens+'번 들었어요</span><span class="grow"></span>'
+    +[0.5,0.75,1].map(r=>'<button class="chip '+(s.rate===r?'on':'')+'" data-a="rate" data-r="'+r+'">'+r+'x</button>').join('')+'</div>';
+}
+function wordsHTML(){
+  const n=S.tk.length;
+  return S.tk.map((t,i)=>{
+    const g=S.gr[i],len=Math.max(t.core.length,2);
+    const ph=(S.hint===1?t.core[0]:S.hint>=2?t.core[0]+'·'.repeat(t.core.length-1):'');
+    const ro=(g==='ok'||g==='rv');
+    return '<div class="wd"><div class="wr">'+(t.pre?'<b>'+esc(t.pre)+'</b>':'')
+      +'<input class="wi '+(g||'')+'" data-i="'+i+'" style="width:calc('+len+'ch + 28px)" value="'+esc(S.vals[i]||'')+'"'+(ro?' readonly':'')
+      +' placeholder="'+esc(ph)+'" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="'+(i<n-1?'next':'done')+'">'
+      +(t.post?'<b>'+esc(t.post)+'</b>':'')+'</div>'
+      +(g==='bad'?'<button class="wk" data-a="rvw" data-i="'+i+'">정답 보기</button>':'<span class="wk"></span>')+'</div>';
+  }).join('');
+}
+function paintStudy(foc){
+  const it=cur(),bad=S.gr.filter(g=>g==='bad').length;
+  $('#ht').textContent=(S.i+1)+' / '+S.q.length;
+  const q=S.st==='in'?'들은 대로 써 보세요':S.st==='bad'?bad+'개가 아쉬워요. 빨간 칸만 다시 써 볼까요?':(S.perfect?'완벽해요! 🎉':'잘했어요! 👏');
+  let h='<div class="card"><div class="q">'+q+'</div><div class="words">'+wordsHTML()+'</div><div class="row2">';
+  if(S.st!=='ok')h+='<button class="chip" data-a="hint"'+(S.hint>=2?' disabled':'')+'>💡 '+['첫 글자 힌트','글자 수 힌트','힌트 끝'][S.hint]+'</button>';
+  h+='<button class="chip '+(it.fav?'on':'')+'" data-a="star">'+(it.fav?'⭐ 복습에 담김':'☆ 복습에 담기')+'</button></div></div>';
+  if(S.st!=='in'){
+    h+='<div class="card" id="sres" style="scroll-margin-bottom:110px">'+(S.st==='ok'?'<div class="en">'+esc(it.e)+'</div>':'')
+      +'<div class="ko">'+(it.k?esc(it.k):'<span class="sub">번역이 없어요</span>')+'</div>'
+      +(S.st==='ok'?'<div class="sub">🎧 '+S.listens+'번 듣고 마쳤어요</div>':'')
+      +(S.st==='ok'&&it.fav&&S.ck==='fav'?'<button class="lnk" data-a="unfav">✓ 이제 알겠어요 · 복습에서 빼기</button>':'')+'</div>';
+  }
+  $('#sbody').innerHTML=h;
+  const last=S.i>=S.q.length-1;
+  $('#scta').innerHTML=S.st==='ok'
+    ?'<button class="btn" data-a="snext">'+(last?'학습 끝내기':'다음 문장')+'</button>'
+    :'<button class="btn sec" data-a="giveup">'+(S.st==='bad'?'전부 보기':'정답 보기')+'</button><button class="btn" data-a="grade">'+(S.st==='bad'?'다시 채점하기':'채점하기')+'</button>';
+  if(S.st==='ok'){const r=$('#sres');if(r&&r.scrollIntoView)r.scrollIntoView({block:'nearest',behavior:'smooth'})}
+  if(foc){const f=$('.wi.bad')||$('.wi:not([readonly])');if(f)f.focus()}
+}
+function studyGo(d){
+  const j=S.i+d;
+  if(j<0){toast('첫 문장이에요');return}
+  if(j>=S.q.length){toast('학습을 마쳤어요. 수고했어요 👏');backNav();return}
+  PL.stop();clearTimeout(dfT);
+  history.replaceState(history.state,'','#/study/'+encodeURIComponent(S.ck)+'/'+encodeURIComponent(S.q[j]));
+  mput('draft',null);
+  studyLoad(S.q[j],true);
+}
+function markMiss(){
+  if(S.missed)return;S.missed=true;
+  const it=cur();it.miss=(it.miss||0)+1;
+  if(it.miss>=2&&!it.fav){it.fav=true;it.fa=Date.now();toast('두 번 틀려서 복습에 담았어요 ⭐')}
+  put('items',it);
+}
+function grade(){
+  if(S.st==='ok')return;
+  S.tk.forEach((t,i)=>{
+    if(S.gr[i]==='ok'||S.gr[i]==='rv')return;
+    const v=S.vals[i]||'';
+    if(nz(v)&&nz(v)===nz(t.core)){S.gr[i]='ok';S.vals[i]=t.core}else S.gr[i]='bad';
+  });
+  S.tries++;
+  if(S.gr.some(g=>g==='bad')){S.st='bad';markMiss();paintStudy(true)}else finish();
+}
+function finish(){
+  const it=cur();
+  S.st='ok';
+  S.perfect=S.tries===1&&!S.hinted&&!S.rvd&&S.gr.every(g=>g==='ok');
+  it.done=(it.done||0)+1;it.ls=S.listens;
+  paintStudy();
+  if(navigator.vibrate)navigator.vibrate(15);
+  put('items',it);logDay(S.perfect);
+  mput('ui',Object.assign({},M.ui,{last:{cid:it.cid,sid:it.id}}));clearTimeout(dfT);mput('draft',null);
+}
+let dfT=0;
+function saveDraft(o){clearTimeout(dfT);dfT=setTimeout(()=>mput('draft',o()),300)}
+
+/* ===== 화면: 복습 (즐겨찾기) ===== */
+FN.favScr=function(){
+  const L=favs(),s=set();
+  let h='';
+  if(!L.length)h='<div class="card empty"><b>복습할 문장이 아직 없어요</b>받아쓰기 중 "☆ 복습에 담기"를 누르거나<br>같은 문장을 두 번 틀리면 여기에 모여요.</div>';
+  else{
+    h+='<div class="row" style="margin:0 0 12px"><span class="sub">'+L.length+'개 · 한글 뜻을 보고 영어를 떠올려 봐요</span><span class="grow"></span><button class="chip '+(s.shuf?'on':'')+'" data-a="shuf">🔀 섞기</button></div>';
+    L.forEach(i=>{
+      const c=vidOf(i.cid);
+      h+='<div class="card it"><button class="tap" data-a="fstudy" data-id="'+i.id+'"><span class="tx">'+esc(i.k||'(번역 없음)')+'<small>'+esc(c?c.title:'')+(i.miss?' · 틀린 '+i.miss+'번':'')+'</small></span></button>'
+        +'<button class="dots" data-a="smenu" data-id="'+i.id+'" data-f="1">⋯</button></div>';
+    });
+  }
+  view('복습',{html:h,cta:L.length?'<button class="btn" data-a="fstudy">복습 시작</button>':''});
+};
+
+/* ===== 화면: 기록 (캘린더) ===== */
+let calSel=null;
+FN.logScr=function(){
+  const ym=(M.ui&&M.ui.cal)||ymd().slice(0,7),[y,m]=ym.split('-').map(Number);
+  const days=M.days||{},goal=set().goal,td=ymd();
+  const first=new Date(y,m-1,1).getDay(),dim=new Date(y,m,0).getDate();
+  if(!calSel||calSel.slice(0,7)!==ym)calSel=td.slice(0,7)===ym?td:ym+'-01';
+  let cells='<div class="w7">일</div><div class="w7">월</div><div class="w7">화</div><div class="w7">수</div><div class="w7">목</div><div class="w7">금</div><div class="w7">토</div>';
+  for(let i=0;i<first;i++)cells+='<i></i>';
+  let md=0,mn=0;
+  for(let d=1;d<=dim;d++){
+    const k=ym+'-'+String(d).padStart(2,'0'),r=days[k];
+    if(r&&r.n>0){md++;mn+=r.n}
+    cells+='<button class="cd '+(r&&r.n>0?(r.n>=goal?'goal':'has'):'')+(k===td?' today':'')+(k===calSel?' sel':'')+'" data-a="calday" data-d="'+k+'">'+d+'</button>';
+  }
+  let total=0;Object.keys(days).forEach(k=>total+=days[k].n);
+  const sr=days[calSel]||{n:0,ok:0},sd=pd(calSel);
+  const h='<div class="card"><div class="mnav"><button data-a="calmv" data-v="-1">‹</button><b>'+y+'년 '+m+'월</b><button data-a="calmv" data-v="1">›</button></div><div class="cal">'+cells+'</div></div>'
+    +'<div class="card"><div class="sub">'+(sd.getMonth()+1)+'월 '+sd.getDate()+'일</div><div style="font-size:17px;font-weight:700;margin-top:2px">'
+    +(sr.n?sr.n+'문장 공부 · 완벽 '+sr.ok+'개'+(sr.n>=goal?' 🎉':''):'공부한 기록이 없어요')+'</div></div>'
+    +'<div class="grid2"><div class="card"><div class="sub">이번 달</div><div class="num">'+md+'일 · '+mn+'문장</div></div><div class="card"><div class="sub">연속 / 누적</div><div class="num">🔥'+streak()+'일 · '+fm(total)+'</div></div></div>'
+    +'<div class="foot">파란 칸은 하루 목표('+goal+'문장)를 채운 날이에요</div>';
+  view('기록',{html:h});
+};
+
+/* ===== 화면: 영상 만들기 / 수정 ===== */
+function mkParse(txt){
+  const rows=[];
+  String(txt).split(/\r?\n/).forEach((ln,i)=>{
+    if(!ln.trim()||ln.trim()[0]==='#')return;
+    const p=(ln.includes('|')?ln.split('|'):ln.split('\t')).map(x=>x.trim()),r={n:i+1};
+    if(p.length<3){r.err='칸이 모자라요 (시작 | 종료 | 영어 | 한글)';rows.push(r);return}
+    r.st=pT(p[0]);r.en=pT(p[1]);r.e=p[2];r.k=p.slice(3).join(' | ');
+    if(isNaN(r.st)||isNaN(r.en))r.err='시간 형식을 확인해 주세요 (예: 1:23)';
+    else if(r.en<=r.st)r.err='종료가 시작보다 늦어야 해요';
+    else if(!toks(r.e).length)r.err='영어 문장이 비어 있어요';
+    rows.push(r);
+  });
+  return rows;
+}
+const SAMPLE='0:05 | 0:08 | How are you doing today? | 오늘 어떻게 지내세요?\n0:09 | 0:12 | I\'m doing great, thanks for asking. | 잘 지내요, 물어봐 줘서 고마워요.';
+let MK={id:'',rows:[]};
+FN.makeScr=function(id){
+  const c=id&&vidOf(id);
+  if(id&&!c){goR('#/vids');return}
+  const d=M.draft&&M.draft.k==='m'&&(M.draft.id||'')===(id||'')?M.draft:null;
+  const url=d?d.url:(c?c.url:''),title=d?d.title:(c?c.title:'');
+  const tpl=d?d.tpl:(c?itemsOf(id).map(i=>fT(i.st)+' | '+fT(i.en)+' | '+i.e+' | '+(i.k||'')).join('\n'):'');
+  MK={id:id||'',rows:[]};
+  const h='<div class="card"><label>유튜브 링크</label><input id="mk-url" class="in" inputmode="url" autocomplete="off" placeholder="https://youtu.be/..." value="'+esc(url)+'">'
+    +'<label>제목 (안 써도 돼요)</label><input id="mk-title" class="in" autocomplete="off" placeholder="예: 카페에서 주문하기" value="'+esc(title)+'"></div>'
+    +'<div id="mk-yt" style="display:none">'+ytHTML(0)+'</div>'
+    +'<div class="card"><label>문장 한꺼번에 넣기</label><div class="fmt">시작 | 종료 | 영어 | 한글</div>'
+    +'<div class="sub">한 줄에 문장 하나예요. 시간은 1:23 처럼 써요. 엑셀·시트에서 4칸을 복사해 붙여넣어도 돼요.</div>'
+    +'<textarea id="mk-tpl" class="in" style="margin-top:10px" rows="8" spellcheck="false" autocapitalize="off" placeholder="0:05 | 0:08 | How are you? | 잘 지내세요?">'+esc(tpl)+'</textarea>'
+    +'<button class="lnk" data-a="mksample">예시 넣어 보기</button></div>'
+    +'<div id="mk-pv"></div>';
+  view(c?'영상 수정':'영상 만들기',{back:1,parent:c?'#/vid/'+id:'#/vids',ha:'<button data-a="mkclear">비우기</button>',html:h,cta:'<button class="btn" data-a="mksave">저장하기</button>'});
+  mkPreview();
+};
+function mkPreview(){
+  const url=$('#mk-url').value,tpl=$('#mk-tpl').value,vid=ytId(url);
+  MK.rows=mkParse(tpl);
+  const box=$('#mk-yt');box.style.display=vid?'':'none';
+  if(vid)PL.use(vid);
+  const ok=MK.rows.filter(r=>!r.err).length,bad=MK.rows.length-ok;
+  let h='';
+  if(url.trim()&&!vid)h+='<div class="card"><span class="er red">유튜브 링크를 알아볼 수 없어요. 주소 전체를 붙여넣어 주세요.</span></div>';
+  if(MK.rows.length){
+    h+='<div class="card pv"><div class="sub" style="margin-bottom:6px">미리보기 · 문장 '+ok+'개'+(bad?' · <span class="red">오류 '+bad+'줄</span>':'')+' · ▶를 누르면 그 구간을 들어볼 수 있어요</div>';
+    MK.rows.forEach((r,i)=>{
+      h+='<div class="r">'+(r.err?'<span style="width:36px"></span>':'<button data-a="mkplay" data-i="'+i+'">▶</button>')
+        +'<div style="min-width:0"><div class="tm">'+r.n+'줄'+(r.err?'':' · '+fT(r.st)+' → '+fT(r.en))+'</div>'
+        +(r.err?'<div class="er">'+esc(r.err)+'</div>':'<div class="e">'+esc(r.e)+'</div><div class="sub">'+esc(r.k||'(번역 없음)')+'</div>')+'</div></div>';
+    });
+    h+='</div>';
+  }
+  $('#mk-pv').innerHTML=h;
+  saveDraft(()=>({k:'m',id:MK.id,url:$('#mk-url')?$('#mk-url').value:'',title:$('#mk-title')?$('#mk-title').value:'',tpl:$('#mk-tpl')?$('#mk-tpl').value:''}));
+}
+async function mkSave(){
+  const url=$('#mk-url').value.trim(),vid=ytId(url);
+  if(!vid){toast('유튜브 링크를 확인해 주세요');return}
+  const rows=mkParse($('#mk-tpl').value);
+  if(!rows.length){toast('문장을 한 줄 이상 넣어 주세요');return}
+  const bad=rows.filter(r=>r.err).length;
+  if(bad){toast('오류가 있는 줄이 '+bad+'개 있어요. 미리보기를 확인해 주세요');return}
+  let c=MK.id&&vidOf(MK.id);
+  const isNew=!c;
+  if(!c)c={id:uid(),ts:Date.now()};
+  c.vid=vid;c.url=url;c.title=$('#mk-title').value.trim()||c.title||('영상 '+(cats.length+(isNew?1:0)));
+  /* 기존 문장 매칭: 영어가 같으면 유지 → 같은 순번이면 수정으로 간주 → 나머지는 새 문장 */
+  const ex=isNew?[]:itemsOf(c.id),used=new Set(),pick=new Array(rows.length).fill(null);
+  rows.forEach((r,i)=>{const m=ex.find(x=>!used.has(x.id)&&nz(x.e)===nz(r.e));if(m){used.add(m.id);pick[i]=m}});
+  rows.forEach((r,i)=>{if(!pick[i]&&ex[i]&&!used.has(ex[i].id)){used.add(ex[i].id);pick[i]=ex[i]}});
+  const gone=ex.filter(x=>!used.has(x.id));
+  if(gone.length&&!confirm('문장 '+gone.length+'개가 삭제돼요(복습에 담긴 것 '+gone.filter(x=>x.fav).length+'개 포함). 저장할까요?'))return;
+  const out=rows.map((r,i)=>Object.assign(pick[i]||{id:uid()},{cid:c.id,o:i,st:r.st,en:r.en,e:r.e,k:r.k}));
+  await put('cats',c);await bulk('items',out,gone.map(x=>x.id));
+  clearTimeout(dfT);await mput('draft',null);await reload();
+  toast('저장했어요');
+  goR('#/vid/'+c.id);
+}
+
+/* ===== 화면: 설정 ===== */
+FN.setScr=function(){
+  const s=set(),bk=M.bk;
+  const h='<div class="card"><label>하루 목표</label><div class="row"><button class="chip" data-a="goal" data-v="-1">－</button><b style="font-size:18px;min-width:70px;text-align:center">'+s.goal+'문장</b><button class="chip" data-a="goal" data-v="1">＋</button></div>'
+    +'<label>기본 재생 속도</label><div class="row">'+[0.5,0.75,1].map(r=>'<button class="chip '+(s.rate===r?'on':'')+'" data-a="rate" data-r="'+r+'">'+r+'x</button>').join('')+'</div>'
+    +'<label>구간 반복</label><div class="row"><button class="chip '+(s.loop?'on':'')+'" data-a="loop">'+(s.loop?'🔁 켜짐':'꺼짐')+'</button><span class="sub">듣기 버튼을 누르면 한 문장을 계속 반복해요</span></div></div>'
+    +'<div class="card"><label>데이터</label><div class="sub" style="margin-bottom:10px">마지막 백업: '+(bk&&bk.at?bk.at:'아직 없어요')+'</div>'
+    +'<div class="row"><button class="btn mini" data-a="backup">JSON 백업 받기</button><button class="btn mini sec" data-a="pick">복구하기 (병합)</button></div></div>'
+    +'<div class="card"><label>재생이 안 될 때</label><div class="sub" style="line-height:1.7">① 인터넷 연결을 확인해요.<br>② 영상 주인이 퍼가기를 막은 영상은 앱에서 재생할 수 없어요. 다른 영상을 써 주세요.<br>③ 주소창이 content:// 나 file:// 로 시작하면 유튜브가 막아요(오류 153). https:// 웹 주소에 올려서 열어야 해요.</div></div>'
+    +'<div class="foot">데이터는 이 브라우저에 저장돼요.<br>정기적으로 백업하세요.</div>';
+  view('설정',{html:h});
+};
+
+/* ===== 백업 / 복구 ===== */
+function dl(text,name){
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.download=name;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+}
+const pack=(cs,is,days)=>({app:'dictation',version:1,title:'듣기 받아쓰기',exportedAt:new Date().toISOString(),cats:cs,items:is,days:days||{}});
+async function backup(){
+  const d=ymd(),b=M.bk||{},n=(b.at===d?b.n:0)+1;
+  dl(JSON.stringify(pack(cats,items,M.days)),'받아쓰기백업_'+d+'_'+String(n).padStart(2,'0')+'.json');
+  await mput('bk',{at:d,n:n});toast('백업 파일을 저장했어요');
+  if(location.hash==='#/set')FN.setScr();
+}
+async function mergeData(o){
+  if(!o||o.app!=='dictation')throw new Error('app');
+  const cm={},newC=[],newI=[],touched=[];let add=0,dup=0;
+  const sig=(cid,x)=>cid+'|'+x.st+'|'+x.en+'|'+nz(x.e);
+  (o.cats||[]).forEach(c=>{
+    const ex=cats.find(x=>x.id===c.id)||cats.find(x=>x.vid===c.vid&&x.title===c.title)||newC.find(x=>x.vid===c.vid&&x.title===c.title);
+    if(ex){cm[c.id]=ex.id;return}
+    const n=Object.assign({},c);
+    if(cats.some(x=>x.id===n.id)||newC.some(x=>x.id===n.id))n.id=uid();
+    cm[c.id]=n.id;newC.push(n);
+  });
+  (o.items||[]).forEach(i=>{
+    const cid=cm[i.cid];if(!cid)return;
+    const s=sig(cid,i);
+    const ex=items.find(x=>x.id===i.id&&x.cid===cid)||items.find(x=>sig(x.cid,x)===s)||newI.find(x=>sig(x.cid,x)===s);
+    if(ex){
+      dup++;
+      if(i.fav&&!ex.fav){ex.fav=true;ex.fa=i.fa||Date.now();touched.push(ex)}
+      if(N(i.miss)>N(ex.miss)){ex.miss=i.miss;touched.push(ex)}
+      if(N(i.done)>N(ex.done)){ex.done=i.done;touched.push(ex)}
+      return;
+    }
+    const n=Object.assign({},i,{cid:cid});
+    if(items.some(x=>x.id===n.id)||newI.some(x=>x.id===n.id))n.id=uid();
+    newI.push(n);add++;
+  });
+  const days=M.days||{};
+  Object.keys(o.days||{}).forEach(k=>{
+    const v=o.days[k],c=days[k];
+    if(!c)days[k]={n:N(v.n),ok:N(v.ok)};else{c.n=Math.max(N(c.n),N(v.n));c.ok=Math.max(N(c.ok),N(v.ok))}
+  });
+  await bulk('cats',newC);await bulk('items',newI.concat(touched));await mput('days',days);await reload();
+  return{add:add,dup:dup};
+}
+$('#fi').addEventListener('change',async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{
+    const r=await mergeData(JSON.parse(await f.text()));
+    openM('<div class="sh-t">복구를 마쳤어요</div><div class="card" style="margin:0 0 14px"><b style="font-size:18px">추가 '+r.add+' · 중복 제외 '+r.dup+'</b></div><div class="row"><button class="btn" data-a="mok">확인</button></div>');
+  }catch(err){toast(err.message==='app'?'이 앱의 백업 파일이 아니에요':'파일을 읽지 못했어요')}
+});
+
+/* ===== 시트: 문장·영상 메뉴 ===== */
+function editSheet(id){
+  const i=itemOf(id);
+  openM('<div class="sh-t">문장 수정</div><div class="row" style="flex-wrap:nowrap"><div class="grow"><label>시작</label><input id="es-st" class="in" inputmode="decimal" value="'+fT(i.st)+'"></div><div class="grow"><label>종료</label><input id="es-en" class="in" inputmode="decimal" value="'+fT(i.en)+'"></div></div>'
+    +'<label>영어</label><textarea id="es-e" class="in" rows="2" autocapitalize="off" spellcheck="false">'+esc(i.e)+'</textarea>'
+    +'<label>한글 번역</label><textarea id="es-k" class="in" rows="2">'+esc(i.k||'')+'</textarea>'
+    +'<div class="row" style="margin-top:16px"><button class="btn" data-a="esave" data-id="'+id+'">저장</button></div>');
+}
+
+/* ===== 클릭 처리 ===== */
+const ACT={
+  go:a=>go(a.dataset.h),
+  tab:a=>goR(a.dataset.h),
+  back:()=>backNav(),
+  mclose:(a,e)=>{if(e.target===a)closeM()},
+  mok:()=>closeM(()=>route()),
+  undo:()=>{if(UNDO){const f=UNDO;UNDO=null;$('#ts').classList.remove('on');f()}},
+  pick:()=>$('#fi').click(),
+  backup:()=>backup(),
+  study:a=>go('#/study/'+encodeURIComponent(a.dataset.ck)+'/'+encodeURIComponent(a.dataset.id)),
+  fstudy:a=>{
+    const L=favs().map(i=>i.id);let q=set().shuf?shuffle(L):L;
+    const sid=a.dataset.id||q[0];
+    q=[sid].concat(q.filter(x=>x!==sid));FQ=q;
+    go('#/study/fav/'+encodeURIComponent(sid));
+  },
+  shuf:()=>{setSave({shuf:!set().shuf});FN.favScr()},
+  /* 받아쓰기 */
+  play:()=>{if(S&&S.sid&&/^#\/study/.test(location.hash)){const it=cur(),s=set();PL.play(it.st,it.en,s.rate,s.loop)}},
+  loop:()=>{const v=!set().loop;setSave({loop:v});PL.loop=v;if(S&&/^#\/study/.test(location.hash))paintCtl();else FN.setScr()},
+  rate:a=>{
+    const r=Number(a.dataset.r);setSave({rate:r});
+    try{PL.p&&PL.ready&&PL.p.setPlaybackRate(r)}catch(e){}
+    if(S&&/^#\/study/.test(location.hash))paintCtl();else FN.setScr();
+  },
+  hint:()=>{if(S.hint<2){S.hint++;S.hinted=true;paintStudy()}},
+  star:()=>{
+    const it=cur();it.fav=!it.fav;it.fa=it.fav?Date.now():0;put('items',it);
+    toast(it.fav?'복습에 담았어요 ⭐':'복습에서 뺐어요');paintStudy();
+  },
+  unfav:()=>{const it=cur();it.fav=false;put('items',it);toast('복습에서 뺐어요',()=>{it.fav=true;it.fa=Date.now();put('items',it);if(S&&S.sid===it.id)paintStudy()});paintStudy()},
+  grade:()=>grade(),
+  giveup:()=>{
+    S.tk.forEach((t,i)=>{if(S.gr[i]!=='ok'){S.gr[i]='rv';S.vals[i]=t.core}});
+    S.rvd=true;markMiss();finish();
+  },
+  rvw:a=>{
+    const i=Number(a.dataset.i);S.gr[i]='rv';S.vals[i]=S.tk[i].core;S.rvd=true;markMiss();
+    if(S.gr.every(g=>g==='ok'||g==='rv'))finish();else paintStudy();
+  },
+  snext:()=>studyGo(1),
+  skip:a=>studyGo(Number(a.dataset.d)),
+  plretry:()=>{
+    const v=PL.vid;PL.kill();PL.host();
+    const e=$('#yte');if(e)e.style.display='none';
+    const b=$('#ytbox');if(b)b.classList.remove('rd');
+    PL.use(v);
+    if(S&&S.sid&&/^#\/study/.test(location.hash)){const it=cur(),s=set();PL.play(it.st,it.en,s.rate,s.loop)}
+  },
+  /* 캘린더 */
+  calmv:a=>{
+    const ym=(M.ui&&M.ui.cal)||ymd().slice(0,7);let[y,m]=ym.split('-').map(Number);
+    m+=Number(a.dataset.v);if(m<1){m=12;y--}if(m>12){m=1;y++}
+    mput('ui',Object.assign({},M.ui,{cal:y+'-'+String(m).padStart(2,'0')}));calSel=null;FN.logScr();
+  },
+  calday:a=>{calSel=a.dataset.d;FN.logScr()},
+  goal:a=>{setSave({goal:Math.min(100,Math.max(1,set().goal+Number(a.dataset.v)))});FN.setScr()},
+  /* 만들기 */
+  mksample:()=>{
+    const t=$('#mk-tpl');
+    if(t.value.trim()){toast('이미 내용이 있어요. 먼저 비워 주세요');return}
+    t.value=SAMPLE;mkPreview();
+  },
+  mkclear:()=>{
+    if(!confirm('입력한 내용을 모두 비울까요?'))return;
+    $('#mk-url').value='';$('#mk-title').value='';$('#mk-tpl').value='';mkPreview();
+  },
+  mkplay:a=>{const r=MK.rows[Number(a.dataset.i)];if(r&&!r.err){if(PL.errc){toast('영상을 재생할 수 없어요. 링크를 확인해 주세요');return}PL.play(r.st,r.en,1,false)}},
+  mksave:()=>mkSave(),
+  /* 메뉴 */
+  vmenu:a=>{
+    const c=vidOf(a.dataset.id);
+    openM('<div class="sh-t">'+esc(c.title)+'</div><button class="mi" data-a="vedit" data-id="'+c.id+'">✏️ 수정하기</button>'
+      +'<button class="mi" data-a="vexp" data-id="'+c.id+'">📤 이 영상 내보내기 (JSON)</button>'
+      +'<button class="mi red" data-a="vdel" data-id="'+c.id+'">🗑 영상 삭제</button>');
+  },
+  vedit:a=>closeM(()=>go('#/make/'+a.dataset.id)),
+  vexp:a=>closeM(()=>{
+    const c=vidOf(a.dataset.id);
+    dl(JSON.stringify(pack([c],itemsOf(c.id),{})),'받아쓰기영상_'+c.title.replace(/[\\/:*?"<>|]/g,'_')+'_'+ymd()+'.json');
+    toast('영상 파일을 저장했어요');
+  }),
+  vdel:a=>closeM(async()=>{
+    const c=vidOf(a.dataset.id),L=itemsOf(c.id);
+    if(!confirm('「'+c.title+'」과 문장 '+L.length+'개(복습에 담긴 것 '+L.filter(i=>i.fav).length+'개)가 삭제돼요. 삭제할까요?'))return;
+    await del('cats',c.id);await bulk('items',[],L.map(i=>i.id));await reload();route();
+    toast('영상을 삭제했어요',async()=>{await put('cats',c);await bulk('items',L);await reload();route()});
+  }),
+  smenu:a=>{
+    const i=itemOf(a.dataset.id),f=!!a.dataset.f;
+    openM('<div class="sh-t">'+esc(i.k||i.e)+'</div><button class="mi" data-a="sedit" data-id="'+i.id+'">✏️ 수정하기</button>'
+      +(f?'<button class="mi red" data-a="sfav" data-id="'+i.id+'">🗑 복습에서 삭제</button>'
+         :'<button class="mi" data-a="sfav" data-id="'+i.id+'">'+(i.fav?'⭐ 복습에서 빼기':'⭐ 복습에 담기')+'</button><button class="mi red" data-a="sdel" data-id="'+i.id+'">🗑 문장 삭제</button>'));
+  },
+  sedit:a=>editSheet(a.dataset.id),
+  esave:async a=>{
+    const i=itemOf(a.dataset.id),st=pT($('#es-st').value),en=pT($('#es-en').value),e=$('#es-e').value.trim();
+    if(isNaN(st)||isNaN(en)){toast('시간 형식을 확인해 주세요 (예: 1:23)');return}
+    if(en<=st){toast('종료가 시작보다 늦어야 해요');return}
+    if(!toks(e).length){toast('영어 문장을 입력해 주세요');return}
+    Object.assign(i,{st:st,en:en,e:e,k:$('#es-k').value.trim()});
+    await put('items',i);closeM(()=>{route();toast('수정했어요')});
+  },
+  sfav:a=>closeM(()=>{
+    const i=itemOf(a.dataset.id),was=i.fav;
+    i.fav=!was;i.fa=i.fav?Date.now():0;put('items',i);route();
+    toast(i.fav?'복습에 담았어요 ⭐':'복습에서 뺐어요',()=>{i.fav=was;i.fa=was?Date.now():0;put('items',i);route()});
+  }),
+  sdel:a=>closeM(()=>{
+    const i=itemOf(a.dataset.id);
+    del('items',i.id).then(()=>reload()).then(()=>{route();toast('문장을 삭제했어요',async()=>{await put('items',i);await reload();route()})});
+  })
+};
+document.addEventListener('click',e=>{
+  const a=e.target.closest('[data-a]');
+  if(!a||a.disabled)return;
+  const f=ACT[a.dataset.a];
+  if(f){e.preventDefault();f(a,e)}
+});
+
+/* 입력 처리: 받아쓰기 칸 / 만들기 폼 */
+document.addEventListener('input',e=>{
+  const t=e.target;
+  if(t.classList.contains('wi')&&S){
+    if(/\s/.test(t.value)){
+      t.value=t.value.replace(/\s+/g,'');
+      const ins=$$('.wi:not([readonly])'),k=ins.indexOf(t);
+      if(ins[k+1])ins[k+1].focus();
+    }
+    S.vals[Number(t.dataset.i)]=t.value;
+    saveDraft(()=>({k:'s',sid:S.sid,vals:S.vals.slice()}));
+  }else if(t.id==='mk-url'||t.id==='mk-tpl'||t.id==='mk-title')mkPreview();
+});
+document.addEventListener('keydown',e=>{
+  const t=e.target;
+  if(!t.classList||!t.classList.contains('wi'))return;
+  const ins=$$('.wi:not([readonly])'),k=ins.indexOf(t);
+  if(e.key==='Enter'){
+    e.preventDefault();
+    if(k<ins.length-1)ins[k+1].focus();else grade();
+  }else if(e.key==='Backspace'&&!t.value&&k>0){e.preventDefault();ins[k-1].focus()}
+});
+
+/* ===== 시작 ===== */
+(async function start(){
+  if(!window.indexedDB){
+    $('#app').innerHTML='<div class="card empty"><b>저장소를 쓸 수 없어요</b>이 브라우저에서는 데이터를 저장할 수 없어요.<br>시크릿 모드를 끄고 다시 열어 주세요.</div>';return;
+  }
+  try{db=await openDB();await reload()}
+  catch(e){$('#app').innerHTML='<div class="card empty"><b>저장소를 열지 못했어요</b>브라우저를 다시 시작해 주세요.</div>';return}
+  if(!M.first)await mput('first',ymd());
+  history.scrollRestoration='manual';
+  let h=location.hash,restored=false;
+  if((!h||h==='#/')&&M.ui&&M.ui.route&&M.ui.route!=='#/'){h=M.ui.route;restored=true}
+  h=h||'#/';
+  history.replaceState({base:1,d:0},'',h);
+  history.pushState({d:0},'',h);
+  route();
+  if(restored&&M.ui.scroll)scrollTo(0,M.ui.scroll);
+})();
+</script>
+</body>
+</html>
