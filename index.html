@@ -139,6 +139,8 @@ textarea.in{height:auto;padding:12px 14px;resize:vertical;line-height:1.5}
 .circ.pl .i-pa{display:block}
 .circ.pl .i-pl{display:none}
 .fab{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:calc(76px + env(safe-area-inset-bottom));z-index:16;width:54px;height:54px;box-shadow:0 8px 22px rgba(0,0,0,.22)}
+.fab.rp{bottom:calc(140px + env(safe-area-inset-bottom));background:var(--c);color:var(--t);border:1px solid var(--ln);border-radius:50%;font-size:13px;font-weight:800}
+.fab.rp:disabled{opacity:.35;box-shadow:none}
 .fab svg{width:24px;height:24px}
 .vl #yte{font-size:11px;padding:6px;gap:6px;overflow:auto}
 .vl #yte a,.vl #yte button{padding:5px 8px;font-size:11px}
@@ -288,7 +290,7 @@ async function reload(){
   (await all('meta')).forEach(r=>M[r.id]=r.v);
 }
 const mput=(id,v)=>{M[id]=v;return put('meta',{id,v})};
-const set=()=>Object.assign({rate:1,loop:false,goal:10,shuf:false},M.set||{});
+const set=()=>Object.assign({rate:1,loop:false,goal:10,shuf:false,rep:3},M.set||{});
 const setSave=o=>mput('set',Object.assign(set(),o));
 
 /* 데이터 조회 */
@@ -380,7 +382,7 @@ PL.mount=function(vid){
         },
         onStateChange:e=>{
           PL.st=e.data;
-          const b=$('#ytbox');b&&b.classList.toggle('pl',e.data===1);const tg=$('#tog');tg&&tg.classList.toggle('pl',e.data===1);
+          const b=$('#ytbox');b&&b.classList.toggle('pl',e.data===1);const tg=$('#tog');tg&&tg.classList.toggle('pl',e.data===1);const rp=$('#rep');if(rp)rp.disabled=e.data!==2;
           if(e.data===1&&PL.want){PL.want=false;PL.onCount&&PL.onCount()}
           if(e.data===0&&PL.seg){
             if(PL.loop){PL.p.seekTo(PL.seg.st,true);PL.p.playVideo();PL.onLoop&&PL.onLoop()}else PL.seg=null;
@@ -485,7 +487,16 @@ addEventListener('popstate',e=>{
 });
 function saveUI(){mput('ui',Object.assign({},M.ui,{route:location.hash||'#/',scroll:scrollY}))}
 addEventListener('pagehide',saveUI);
-document.addEventListener('visibilitychange',()=>{if(document.hidden)saveUI()});
+let hidAt=0;
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){saveUI();hidAt=Date.now();return}
+  /* 화면을 껐다가 다시 들어오면 홈으로 돌아가요 (잠깐 앱을 벗어난 건 무시) */
+  const away=hidAt&&Date.now()-hidAt>1500;hidAt=0;
+  if(away&&location.hash!=='#/'){
+    if(MOPEN){hideM();PEND=null}
+    history.replaceState({d:0},'','#/');route();scrollTo(0,0);
+  }
+});
 let scT=0;
 addEventListener('scroll',()=>{clearTimeout(scT);scT=setTimeout(()=>{SCR[location.hash]=scrollY},120)},{passive:true});
 
@@ -611,7 +622,7 @@ FN.studyScr=function(ck,sid){
   view('',{back:1,nonav:1,parent:par,
     ha:'<button data-a="skip" data-d="-1" aria-label="이전 문장">‹</button><button data-a="skip" data-d="1" aria-label="다음 문장">›</button>',
     html:'<div class="vrow"><div class="vl">'+ytHTML(1)+'<div class="sub" id="slis"></div></div><div class="vr" id="sctl"></div></div><div id="adjp"></div><div id="sbody"></div>'
-      +'<button id="tog" class="circ fab" data-a="play" aria-label="재생 / 일시정지">'+IC_PLAY+IC_PAUSE+'</button>',cta:'<div style="display:contents" id="scta"></div>'});
+      +'<button id="rep" class="fab rp" data-a="rep" aria-label="정지한 곳에서 뒤로 반복" disabled>반복</button><button id="tog" class="circ fab" data-a="play" aria-label="재생 / 일시정지">'+IC_PLAY+IC_PAUSE+'</button>',cta:'<div style="display:contents" id="scta"></div>'});
   PL.onCount=()=>{S.listens++;paintCtl()};
   PL.onLoop=PL.onCount;
   studyLoad(sid,false);
@@ -627,7 +638,7 @@ function studyLoad(sid,foc){
   const d=M.draft;if(d&&d.k==='s'&&d.sid===sid&&Array.isArray(d.vals))S.vals=d.vals.slice();
   PL.use(vidOf(it.cid).vid);
   paintCtl();paintStudy(foc);
-  const s=set();PL.play(it.st,it.en,s.rate,s.loop);
+  PL.stop();   /* 자동으로 재생하지 않아요. 재생 버튼을 눌러야 시작해요 */
 }
 function adjHTML(it){
   const row=(k,lb,v)=>'<div class="ar"><span>'+lb+'</span><button data-a="adj" data-k="'+k+'" data-v="-0.5">−0.5</button><b>'+fT(v)+'</b><button data-a="adj" data-k="'+k+'" data-v="0.5">+0.5</button></div>';
@@ -656,6 +667,7 @@ function paintCtl(){
   if(S.adj)h=adjHTML(it);
   $('#adjp').innerHTML=h;
   const t=$('#tog');if(t)t.classList.toggle('pl',PL.st===1);
+  const rp=$('#rep');if(rp)rp.disabled=PL.st!==2;
 }
 function wordsHTML(){
   const n=S.tk.length;
@@ -852,6 +864,7 @@ FN.setScr=function(){
   const h='<div class="card"><label>하루 목표</label><div class="row"><button class="chip" data-a="goal" data-v="-1">－</button><b style="font-size:18px;min-width:70px;text-align:center">'+s.goal+'문장</b><button class="chip" data-a="goal" data-v="1">＋</button></div>'
     +'<label>기본 재생 속도</label><div class="row">'+[0.5,0.75,1].map(r=>'<button class="chip '+(s.rate===r?'on':'')+'" data-a="rate" data-r="'+r+'">'+r+'x</button>').join('')+'</div>'
     +'<label>구간 반복</label><div class="row"><button class="chip '+(s.loop?'on':'')+'" data-a="loop">'+(s.loop?'켜짐':'꺼짐')+'</button><span class="sub">듣기 버튼을 누르면 한 문장을 계속 반복해요</span></div></div>'
+    +'<div class="card"><label>정지 지점 반복 길이</label><div class="row">'+[3,4,5].map(n=>'<button class="chip '+(s.rep===n?'on':'')+'" data-a="repn" data-n="'+n+'">'+n+'초</button>').join('')+'</div><div class="sub" style="margin-top:6px">멈춘 곳에서 이만큼 뒤로 가서 반복해요</div></div>'
     +'<div class="card"><label>데이터</label><div class="sub" style="margin-bottom:10px">마지막 백업: '+(bk&&bk.at?bk.at:'아직 없어요')+'</div>'
     +'<div class="row"><button class="btn mini" data-a="backup">JSON 백업 받기</button><button class="btn mini sec" data-a="pick">복구하기 (병합)</button></div></div>'
     +'<div class="card"><label>재생이 안 될 때</label><div class="sub" style="line-height:1.7">① 인터넷 연결을 확인해요.<br>② 영상 주인이 퍼가기를 막은 영상은 앱에서 재생할 수 없어요. 다른 영상을 써 주세요.<br>③ 주소창이 content:// 나 file:// 로 시작하면 유튜브가 막아요(오류 153). https:// 웹 주소에 올려서 열어야 해요.</div></div>'
@@ -959,6 +972,14 @@ const ACT={
     if(PL.p&&PL.ready&&PL.seg&&PL.st===2){PL.want=false;try{PL.p.playVideo()}catch(e){}return}
     PL.play(it.st,it.en,s.rate,s.loop);
   },
+  rep:()=>{
+    if(!(S&&S.sid&&/^#\/study/.test(location.hash))||!PL.p||!PL.ready||PL.st!==2)return;
+    let t;try{t=PL.p.getCurrentTime()}catch(e){return}
+    const n=set().rep||3,st=Math.max(0,Math.round((t-n)*10)/10);
+    if(t-st<0.5){toast('멈춘 곳이 너무 앞이라 반복할 수 없어요');return}
+    PL.play(st,t,set().rate,true);   /* 멈춘 곳에서 n초 전부터 그 구간만 계속 반복 */
+    toast(n+'초 구간을 반복해요. 멈추려면 정지 버튼을 눌러요');
+  },
   adjtog:()=>{S.adj=!S.adj;paintCtl()},
   adj:a=>{
     const it=ci(),k=a.dataset.k,v=Number(a.dataset.v),r=x=>Math.round(x*10)/10;
@@ -1048,6 +1069,7 @@ const ACT={
     mput('ui',Object.assign({},M.ui,{cal:y+'-'+String(m).padStart(2,'0')}));calSel=null;FN.logScr();
   },
   calday:a=>{calSel=a.dataset.d;FN.logScr()},
+  repn:a=>{setSave({rep:Number(a.dataset.n)});FN.setScr()},
   goal:a=>{setSave({goal:Math.min(100,Math.max(1,set().goal+Number(a.dataset.v)))});FN.setScr()},
   /* 만들기 */
   mksample:()=>{
@@ -1147,13 +1169,10 @@ document.addEventListener('keydown',e=>{
   catch(e){$('#app').innerHTML='<div class="card empty"><b>저장소를 열지 못했어요</b>브라우저를 다시 시작해 주세요.</div>';return}
   if(!M.first)await mput('first',ymd());
   history.scrollRestoration='manual';
-  let h=location.hash,restored=false;
-  if((!h||h==='#/')&&M.ui&&M.ui.route&&M.ui.route!=='#/'){h=M.ui.route;restored=true}
-  h=h||'#/';
+  const h='#/';   /* 앱을 다시 열면 항상 홈에서 시작해요 */
   history.replaceState({base:1,d:0},'',h);
   history.pushState({d:0},'',h);
   route();
-  if(restored&&M.ui.scroll)scrollTo(0,M.ui.scroll);
 })();
 </script>
 </body>
