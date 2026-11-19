@@ -143,6 +143,10 @@ textarea.in{height:auto;padding:12px 14px;resize:vertical;line-height:1.5}
 .vl #yte{font-size:11px;padding:6px;gap:6px;overflow:auto}
 .vl #yte a,.vl #yte button{padding:5px 8px;font-size:11px}
 .adj{display:flex;flex-direction:column;gap:4px;padding:8px 14px}
+.kol{font-size:12.5px;color:var(--s);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0 4px 6px}
+.kol.x{white-space:normal;overflow:visible}
+.lk{display:flex;gap:6px;margin-top:2px}.lk .chip{flex:1;padding:0 6px;font-size:12px}
+.sw{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:8px}.sw .chip{padding:0;font-variant-numeric:tabular-nums}
 .ar{display:flex;align-items:center;gap:8px}
 .ar span{width:40px;font-size:14px;color:var(--s);font-weight:600}
 .ar b{flex:1;text-align:center;font-size:18px;font-variant-numeric:tabular-nums}
@@ -212,6 +216,7 @@ textarea.in{height:auto;padding:12px 14px;resize:vertical;line-height:1.5}
   <button data-a="tab" data-h="#/vids" data-t="vids"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3.5"/><path d="M10.2 9.4v5.2l4.4-2.6z"/></svg>영상</button>
   <button data-a="tab" data-h="#/fav" data-t="fav"><svg viewBox="0 0 24 24"><path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1z"/></svg>복습</button>
   <button data-a="tab" data-h="#/log" data-t="log"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="3.5"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>기록</button>
+  <button data-a="tab" data-h="#/opt" data-t="opt"><svg viewBox="0 0 24 24"><path d="M4 12h1.5M8 8v8M12 4v16M16 8v8M20 12h-1.5"/></svg>최적화</button>
   <button data-a="tab" data-h="#/set" data-t="set"><svg viewBox="0 0 24 24"><path d="M5 8h8M18 8h1M5 16h1M10 16h9"/><circle cx="15.5" cy="8" r="2.3"/><circle cx="8" cy="16" r="2.3"/></svg>설정</button>
 </nav>
 <div id="mk" data-a="mclose"><div id="sh"></div></div>
@@ -426,17 +431,17 @@ let SCR={},CURP='#/',S=null,FQ=[];
 const ROUTES=[
   [/^#\/$/,'home'],[/^#\/vids$/,'vids'],[/^#\/vid\/([^/]+)$/,'vidScr'],
   [/^#\/study\/([^/]+)\/([^/]+)$/,'studyScr'],[/^#\/make(?:\/([^/]+))?$/,'makeScr'],
-  [/^#\/fav$/,'favScr'],[/^#\/log$/,'logScr'],[/^#\/set$/,'setScr']
+  [/^#\/fav$/,'favScr'],[/^#\/log$/,'logScr'],[/^#\/opt$/,'optScr'],[/^#\/set$/,'setScr']
 ];
 const FN={};
 function route(){
-  PL.kill();
+  PL.kill();clearInterval(OP.tm);
   const h=location.hash||'#/';
   for(const[re,name]of ROUTES){
     const m=h.match(re);
     if(m){
       FN[name].apply(null,m.slice(1).map(x=>x==null?x:decodeURIComponent(x)));
-      const tab=/^#\/(vids|vid|study|make)/.test(h)?'vids':/^#\/fav/.test(h)?'fav':/^#\/log/.test(h)?'log':/^#\/set/.test(h)?'set':'home';
+      const tab=/^#\/(vids|vid|study|make)/.test(h)?'vids':/^#\/fav/.test(h)?'fav':/^#\/log/.test(h)?'log':/^#\/opt/.test(h)?'opt':/^#\/set/.test(h)?'set':'home';
       $$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===tab));
       scrollTo(0,SCR[h]||0);
       mput('ui',Object.assign({},M.ui,{route:h}));
@@ -544,6 +549,62 @@ FN.vidScr=function(id){
     cta:L.length?'<button class="btn" data-a="study" data-ck="'+id+'" data-id="'+nx.id+'">'+(d?'이어서 학습하기':'학습 시작')+'</button>':''});
 };
 
+/* ===== 화면: 최적화 (영상 전체 싱크 조정) ===== */
+const OP={cid:'',i:0,from:false,tm:0};
+FN.optScr=function(){
+  clearInterval(OP.tm);
+  if(!cats.length){view('최적화',{big:1,html:'<div class="empty">영상을 먼저 추가해 주세요.<br>그러면 여기서 소리와 자막의 싱크를 한꺼번에 맞출 수 있어요.</div>'});return}
+  if(!vidOf(OP.cid))OP.cid=cats[0].id;
+  const L=itemsOf(OP.cid);
+  if(OP.i>=L.length)OP.i=0;
+  const opts=cats.map(c=>'<option value="'+esc(c.id)+'"'+(c.id===OP.cid?' selected':'')+'>'+esc(c.title)+'</option>').join('');
+  const sw=[-1,-0.5,-0.1,0.1,0.5,1].map(v=>'<button class="chip sm" data-a="opshift" data-v="'+v+'">'+(v>0?'+':'−')+Math.abs(v)+'</button>').join('');
+  view('최적화',{big:1,html:'<select class="in" id="optsel" aria-label="영상 선택">'+opts+'</select>'
+    +(L.length?'<div style="margin-top:8px">'+ytHTML('o')+'</div>'
+    +'<div class="card" style="margin-top:8px" id="opcard"></div>'
+    +'<div class="row2"><button class="chip" data-a="opskip" data-d="-1">‹ 이전</button><button class="chip on" id="optog" data-a="optplay">이어서 듣기</button><button class="chip" data-a="opskip" data-d="1">다음 ›</button></div>'
+    +'<div class="card" style="margin-top:8px"><div class="sub">소리보다 구간이 빠르면 +, 늦으면 −</div><div class="sw">'+sw+'</div>'
+    +'<div class="row2"><button class="chip sm" data-a="opnow">지금 소리 = 이 문장 시작</button><button class="chip sm" id="opsc" data-a="opscope"></button><button class="chip sm" id="oplk" data-a="oplink"></button></div></div>'
+    :'<div class="empty">이 영상에는 문장이 없어요.<br>영상 탭에서 문장을 먼저 추가해 주세요.</div>')});
+  if(!L.length)return;
+  PL.use(vidOf(OP.cid).vid);
+  paintOpt();
+  OP.tm=setInterval(()=>{
+    const b=$('#optog');if(b)b.textContent=PL.st===1?'멈춤':'이어서 듣기';
+    if(!(PL.p&&PL.ready&&PL.seg&&PL.st===1))return;
+    let t;try{t=PL.p.getCurrentTime()}catch(e){return}
+    const L=itemsOf(OP.cid);let j=-1;
+    for(let k=0;k<L.length;k++){if(L[k].st<=t+0.05)j=k;else break}
+    if(j>=0&&j!==OP.i){OP.i=j;paintOpt()}
+  },150);
+};
+function paintOpt(){
+  const el=$('#opcard');if(!el)return;
+  const L=itemsOf(OP.cid),it=L[OP.i];if(!it)return;
+  el.innerHTML='<div class="sub">'+(OP.i+1)+' / '+L.length+' · '+fT(it.st)+' ~ '+fT(it.en)+'</div><div class="en" style="margin:3px 0 0">'+esc(it.e)+'</div>'+(it.k?'<div class="kol" style="margin:2px 0 0">'+esc(it.k)+'</div>':'');
+  const pv=L[OP.i-1],lq=$('#oplk');if(lq){lq.style.display=pv?'':'none';if(pv)lq.textContent='앞 '+(lk(pv,it)?'연동':'개별 · '+(Math.round((it.st-pv.en)*10)/10)+'초')}
+  const sc=$('#opsc');if(sc)sc.textContent=OP.from?'이 문장부터 옮기기':'전체 문장 옮기기';
+}
+function optStart(i){
+  const L=itemsOf(OP.cid);if(!L[i])return;
+  OP.i=i;paintOpt();
+  PL.play(L[i].st,L[L.length-1].en+1,1,false);   /* 끝까지 이어서 재생 */
+}
+function optShift(d){
+  const L=itemsOf(OP.cid),from=OP.from?OP.i:0,tg=L.slice(from);
+  if(tg.some(x=>x.st+d<0)){toast('0초보다 앞으로는 옮길 수 없어요');return}
+  const pv=from>0?L[from-1]:null,pl=pv&&lk(pv,tg[0]);   /* 앞 문장과 연동이면 앞 문장 끝도 같이 */
+  if(pl&&pv.en+d-pv.st<0.5){toast('앞 문장이 너무 짧아져요. 앞 문장을 개별로 바꾸고 옮겨 보세요');return}
+  const snap=tg.concat(pl?[pv]:[]).map(x=>({id:x.id,st:x.st,en:x.en})),r=x=>Math.round(x*100)/100;
+  if(pl){pv.en=r(pv.en+d);put('items',pv)}
+  tg.forEach(x=>{x.st=r(x.st+d);x.en=r(x.en+d);put('items',x)});
+  toast(tg.length+'문장을 '+(d>0?'+':'−')+Math.abs(d)+'초 옮겼어요',()=>{
+    snap.forEach(o=>{const x=itemOf(o.id);if(x){x.st=o.st;x.en=o.en;put('items',x)}});paintOpt();
+  });
+  paintOpt();
+  const it=L[OP.i];if(it)PL.play(it.st,it.en,1,false);   /* 바뀐 구간을 바로 들려줘요 */
+}
+
 /* ===== 화면: 받아쓰기 ===== */
 const cur=()=>itemOf(S.sid);
 FN.studyScr=function(ck,sid){
@@ -563,7 +624,7 @@ FN.studyScr=function(ck,sid){
 const IC_PLAY='<svg class="i-pl" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M8 5.6v12.8a1 1 0 0 0 1.52.85l10.2-6.4a1 1 0 0 0 0-1.7L9.52 4.75A1 1 0 0 0 8 5.6z"/></svg>';
 const IC_PAUSE='<svg class="i-pa" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><rect x="6" y="5" width="4.2" height="14" rx="1.4"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.4"/></svg>';
 function ytHTML(study){
-  return '<div id="ytbox"><div id="ytp"></div><div id="ytov"'+(study?' data-a="play"':'')+'><i>'+IC_PLAY+'</i></div><div id="yte"></div></div>';
+  return '<div id="ytbox"><div id="ytp"></div><div id="ytov"'+(study===1?' data-a="play"':study==='o'?' data-a="optplay"':'')+'><i>'+IC_PLAY+'</i></div><div id="yte"></div></div>';
 }
 function studyLoad(sid,foc){
   const it=itemOf(sid);
@@ -584,7 +645,9 @@ function paintCtl(){
   let h='';
   if(S.adj){
     const row=(k,lb,v)=>'<div class="ar"><span>'+lb+'</span><button data-a="adj" data-k="'+k+'" data-v="-0.5">−0.5</button><b>'+fT(v)+'</b><button data-a="adj" data-k="'+k+'" data-v="0.5">+0.5</button></div>';
-    h='<div class="card adj">'+row('st','시작',it.st)+row('en','끝',it.en)+'</div>';
+    const L=itemsOf(it.cid),j=L.findIndex(x=>x.id===it.id),pv=L[j-1],nx=L[j+1];
+    const lb=(a,b,t)=>!a||!b?'':'<button class="chip sm" data-a="adjlink" data-k="'+t+'">'+(t==='p'?'앞 ':'뒷 ')+(lk(a,b)?'연동':'개별 · '+(Math.round((b.st-a.en)*10)/10)+'초')+'</button>';
+    h='<div class="card adj">'+row('st','시작',it.st)+row('en','끝',it.en)+'<div class="lk">'+lb(pv,it,'p')+lb(it,nx,'n')+'</div></div>';
   }
   $('#adjp').innerHTML=h;
   const t=$('#tog');if(t)t.classList.toggle('pl',PL.st===1);
@@ -605,13 +668,12 @@ function wordsHTML(){
 function paintStudy(foc){
   const it=cur(),bad=S.gr.filter(g=>g==='bad').length;
   $('#ht').textContent=(S.i+1)+' / '+S.q.length;
-  let h='<div class="card"><div class="words">'+wordsHTML()+'</div><div class="row2">';
+  let h='<div class="kol'+(S.kow?' x':'')+'" data-a="kotog">'+(it.k?esc(it.k):'번역이 없어요')+'</div><div class="card"><div class="words">'+wordsHTML()+'</div><div class="row2">';
   if(S.st!=='ok')h+='<button class="chip" data-a="hint"'+(S.hint>=2?' disabled':'')+'>'+['첫 글자 힌트','글자 수 힌트','힌트 끝'][S.hint]+'</button>';
   h+='<button class="chip '+(it.fav?'on':'')+'" data-a="star">'+(it.fav?'복습에 담김':'복습에 담기')+'</button></div></div>';
-  if(S.st!=='in'){
-    h+='<div class="card" id="sres" style="scroll-margin-bottom:110px">'+(S.st==='ok'?'<div class="en">'+esc(it.e)+'</div>':'')
-      +'<div class="ko">'+(it.k?esc(it.k):'<span class="sub">번역이 없어요</span>')+'</div>'
-      +(S.st==='ok'&&it.fav&&S.ck==='fav'?'<button class="lnk" data-a="unfav">✓ 이제 알겠어요 · 복습에서 빼기</button>':'')+'</div>';
+  if(S.st==='ok'){
+    h+='<div class="card" id="sres" style="scroll-margin-bottom:110px"><div class="en">'+esc(it.e)+'</div>'
+      +(it.fav&&S.ck==='fav'?'<button class="lnk" data-a="unfav">✓ 이제 알겠어요 · 복습에서 빼기</button>':'')+'</div>';
   }
   $('#sbody').innerHTML=h;
   const last=S.i>=S.q.length-1;
@@ -856,6 +918,17 @@ function editSheet(id){
 }
 
 /* ===== 클릭 처리 ===== */
+const lk=(a,b)=>!b.ul&&Math.abs(a.en-b.st)<0.06;  /* 앞 문장 끝 = 뒤 문장 시작이면 '연결' */
+function linkTog(it,k){
+  const L=itemsOf(it.cid),j=L.findIndex(x=>x.id===it.id);
+  const e=k==='p'?L[j-1]:it,l=k==='p'?it:L[j+1];
+  if(!e||!l){toast('이어진 문장이 없어요');return}
+  if(lk(e,l)){l.ul=true;put('items',l);toast('개별로 바꿨어요. 따로 움직여요')}
+  else{
+    if(l.st-e.st<0.5){toast('앞 문장이 너무 짧아서 연동할 수 없어요');return}
+    e.en=l.st;l.ul=false;put('items',e);put('items',l);toast('연동했어요. 앞 문장 끝 = 뒤 문장 시작');
+  }
+}
 const ACT={
   go:a=>go(a.dataset.h),
   tab:a=>goR(a.dataset.h),
@@ -883,12 +956,56 @@ const ACT={
   },
   adjtog:()=>{S.adj=!S.adj;paintCtl()},
   adj:a=>{
-    const it=cur(),k=a.dataset.k,v=Number(a.dataset.v);
-    let st=it.st,en=it.en;
-    if(k==='st')st=Math.max(0,Math.round((st+v)*10)/10);else en=Math.max(0,Math.round((en+v)*10)/10);
-    if(en-st<0.5){toast('구간이 너무 짧아요');return}
-    it.st=st;it.en=en;put('items',it);paintCtl();
-    const s=set();PL.play(st,en,s.rate,s.loop);
+    const it=cur(),k=a.dataset.k,v=Number(a.dataset.v),r=x=>Math.round(x*10)/10;
+    const L=itemsOf(it.cid),j=L.findIndex(x=>x.id===it.id),pv=L[j-1],nx=L[j+1];
+    let st=it.st,en=it.en,ch=null;
+    if(k==='st'){
+      st=Math.max(0,r(st+v));
+      if(en-st<0.5){toast('구간이 너무 짧아요');return}
+      if(pv&&lk(pv,it)){
+        if(st-pv.st<0.5){toast('앞 문장이 너무 짧아져요. 앞 문장과 끊고 조정해 보세요');return}
+        ch=pv;ch.en=st;
+      }
+    }else{
+      en=Math.max(0,r(en+v));
+      if(en-st<0.5){toast('구간이 너무 짧아요');return}
+      if(nx&&lk(it,nx)){
+        if(nx.en-en<0.5){toast('뒤 문장이 너무 짧아져요. 뒤 문장과 끊고 조정해 보세요');return}
+        ch=nx;ch.st=en;
+      }
+    }
+    it.st=st;it.en=en;put('items',it);if(ch)put('items',ch);paintCtl();
+    /* 시작을 바꾸면 시작점부터 3초, 끝을 바꾸면 끝나기 3초 전부터 들려줘요 */
+    const s=set();
+    if(k==='st')PL.play(st,Math.min(en,st+3),s.rate,false);
+    else PL.play(Math.max(st,en-3),en,s.rate,false);
+  },
+  adjlink:a=>{
+    const it=cur();linkTog(it,a.dataset.k);paintCtl();
+  },
+  oplink:()=>{const it=itemsOf(OP.cid)[OP.i];if(it){linkTog(it,'p');paintOpt()}},
+  kotog:()=>{if(!S)return;S.kow=!S.kow;const e=$('.kol');if(e)e.classList.toggle('x',!!S.kow)},
+  /* 최적화 */
+  optplay:()=>{
+    const L=itemsOf(OP.cid);if(!L.length||!$('#opcard'))return;
+    if(PL.p&&PL.ready&&PL.seg&&PL.st===1){try{PL.p.pauseVideo()}catch(e){}return}
+    if(PL.p&&PL.ready&&PL.seg&&PL.st===2){PL.want=false;try{PL.p.playVideo()}catch(e){}return}
+    optStart(OP.i);
+  },
+  opskip:a=>{
+    const L=itemsOf(OP.cid),j=OP.i+Number(a.dataset.d);
+    if(j<0||j>=L.length){toast(j<0?'첫 문장이에요':'마지막 문장이에요');return}
+    optStart(j);
+  },
+  opscope:()=>{OP.from=!OP.from;paintOpt()},
+  opshift:a=>optShift(Number(a.dataset.v)),
+  opnow:()=>{
+    const it=itemsOf(OP.cid)[OP.i];let t=NaN;
+    try{if(PL.p&&PL.ready)t=PL.p.getCurrentTime()}catch(e){}
+    if(!it||isNaN(t)){toast('영상을 재생하는 중에 눌러 주세요');return}
+    const d=Math.round((t-it.st)*10)/10;
+    if(!d){toast('이미 맞아요');return}
+    optShift(d);
   },
   loop:()=>{const v=!set().loop;setSave({loop:v});PL.loop=v;if(S&&/^#\/study/.test(location.hash))paintCtl();else FN.setScr()},
   rate:a=>{
@@ -984,6 +1101,9 @@ const ACT={
     del('items',i.id).then(()=>reload()).then(()=>{route();toast('문장을 삭제했어요',async()=>{await put('items',i);await reload();route()})});
   })
 };
+document.addEventListener('change',e=>{
+  if(e.target.id==='optsel'){OP.cid=e.target.value;OP.i=0;route()}
+});
 document.addEventListener('click',e=>{
   const a=e.target.closest('[data-a]');
   if(!a||a.disabled)return;
