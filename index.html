@@ -36,7 +36,7 @@ label:first-child{margin-top:0}
 #hb.on{display:block}
 #ht{flex:1;padding-left:10px;font-size:18px;font-weight:800;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #ha{display:flex}
-#ha button[data-a=skip]{text-decoration:none;font-size:24px;font-weight:600}
+#ha button[data-a=skip]{text-decoration:none;font-size:30px;font-weight:600;line-height:1;min-width:60px;height:40px;margin-left:8px;border-radius:20px;background:var(--c)}
 #ha button{min-width:44px;height:44px;padding:0 10px;color:var(--t);font-weight:600;font-size:15px}
 main{padding:4px max(16px,env(safe-area-inset-right)) calc(112px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
 nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;background:var(--bg);border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom)}
@@ -139,6 +139,9 @@ textarea.in{height:auto;padding:12px 14px;resize:vertical;line-height:1.5}
 .circ.pl .i-pa{display:block}
 .circ.pl .i-pl{display:none}
 .fab{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:calc(76px + env(safe-area-inset-bottom));z-index:16;width:54px;height:54px;box-shadow:0 8px 22px rgba(0,0,0,.22)}
+.wi[readonly]{text-decoration:underline dotted;text-underline-offset:5px;cursor:pointer}
+.wmk{background:var(--bs);color:var(--b);border-radius:4px;padding:0 3px;font-style:normal}
+.wex{color:var(--t);padding:8px 0;border-top:1px solid var(--ln);font-size:15px;line-height:1.5}.wex:first-child{border-top:0}.wex small{display:block;color:var(--s);font-size:13px}
 .fab.rp{bottom:calc(140px + env(safe-area-inset-bottom));background:var(--c);color:var(--t);border:1px solid var(--ln);border-radius:50%;font-size:13px;font-weight:800}
 .fab.rp:disabled{opacity:.35;box-shadow:none}
 .fab svg{width:24px;height:24px}
@@ -634,7 +637,7 @@ function ytHTML(study){
 }
 function studyLoad(sid,foc){
   const it=itemOf(sid);
-  Object.assign(S,{i:S.q.indexOf(sid),sid:sid,tk:toks(it.e),vals:[],gr:[],st:'in',hint:0,hinted:false,rvd:false,tries:0,missed:false,listens:0,perfect:false});
+  Object.assign(S,{i:S.q.indexOf(sid),sid:sid,tk:toks(it.e),vals:[],gr:[],st:'in',hint:0,hinted:false,rvd:false,tries:0,missed:false,listens:0,perfect:false,cnt:false});
   const d=M.draft;if(d&&d.k==='s'&&d.sid===sid&&Array.isArray(d.vals))S.vals=d.vals.slice();
   PL.use(vidOf(it.cid).vid);
   paintCtl();paintStudy(foc);
@@ -676,7 +679,7 @@ function wordsHTML(){
     const ph=(S.hint===1?t.core[0]:S.hint>=2?t.core[0]+'·'.repeat(t.core.length-1):'');
     const ro=(g==='ok'||g==='rv');
     return '<div class="wd"><div class="wr">'+(t.pre?'<b>'+esc(t.pre)+'</b>':'')
-      +'<input class="wi '+(g||'')+'" data-i="'+i+'" style="width:calc('+len+'ch + 28px)" value="'+esc(S.vals[i]||'')+'"'+(ro?' readonly':'')
+      +'<input class="wi '+(g||'')+'" data-i="'+i+'" style="width:calc('+len+'ch + 28px)" value="'+esc(S.vals[i]||'')+'"'+(ro?' readonly data-a="word"':'')
       +' placeholder="'+esc(ph)+'" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="'+(i<n-1?'next':'done')+'">'
       +(t.post?'<b>'+esc(t.post)+'</b>':'')+'</div>'
       +(g==='bad'?'<button class="wk" data-a="rvw" data-i="'+i+'">정답 보기</button>':'')+'</div>';
@@ -695,7 +698,7 @@ function paintStudy(foc){
   $('#sbody').innerHTML=h;
   const last=S.i>=S.q.length-1;
   $('#scta').innerHTML=S.st==='ok'
-    ?'<button class="btn" data-a="snext">'+(last?'학습 끝내기':'다음 문장')+'</button>'
+    ?'<button class="btn sec" data-a="retry">다시 풀기</button><button class="btn" data-a="snext">'+(last?'학습 끝내기':'다음 문장')+'</button>'
     :'<button class="btn sec" data-a="giveup">'+(S.st==='bad'?'전부 보기':'정답 보기')+'</button><button class="btn" data-a="grade">'+(S.st==='bad'?'다시 채점하기':'채점하기')+'</button>';
   if(S.st==='ok'){const r=$('#sres');if(r&&r.scrollIntoView)r.scrollIntoView({block:'nearest',behavior:'smooth'})}
   if(foc){const f=$('.wi.bad')||$('.wi:not([readonly])');if(f)f.focus()}
@@ -729,9 +732,10 @@ function finish(){
   const it=cur();
   S.st='ok';
   S.perfect=S.tries===1&&!S.hinted&&!S.rvd&&S.gr.every(g=>g==='ok');
-  it.done=(it.done||0)+1;it.ls=S.listens;
   paintStudy();
   if(navigator.vibrate)navigator.vibrate(15);
+  if(S.cnt)return;S.cnt=true;   /* 다시 풀어도 기록은 한 번만 */
+  it.done=(it.done||0)+1;it.ls=S.listens;
   put('items',it);logDay(S.perfect);
   mput('ui',Object.assign({},M.ui,{last:{cid:it.cid,sid:it.id}}));clearTimeout(dfT);mput('draft',null);
 }
@@ -740,18 +744,27 @@ function saveDraft(o){clearTimeout(dfT);dfT=setTimeout(()=>mput('draft',o()),300
 
 /* ===== 화면: 복습 (즐겨찾기) ===== */
 FN.favScr=function(){
-  const L=favs(),s=set();
-  let h='';
-  if(!L.length)h='<div class="card empty"><b>복습할 문장이 아직 없어요</b>받아쓰기 중 "복습에 담기"를 누르거나<br>같은 문장을 두 번 틀리면 여기에 모여요.</div>';
+  const L=favs(),s=set(),W=WD().slice().sort((x,y)=>(y.t||0)-(x.t||0));
+  let h='<div class="row" style="margin:0 0 10px"><button class="chip '+(FVT==='s'?'on':'')+'" data-a="ftab" data-t="s">문장 '+L.length+'</button><button class="chip '+(FVT==='w'?'on':'')+'" data-a="ftab" data-t="w">단어장 '+W.length+'</button></div>';
+  let cta='';
+  if(FVT==='w'){
+    if(!W.length)h+='<div class="card empty"><b>단어장이 비었어요</b>받아쓰기에서 정답을 본 뒤 단어를 누르고<br>"단어장에 담기"를 눌러 보세요.</div>';
+    else W.forEach(e=>{
+      const it=itemOf(wsrc(e));
+      h+='<div class="card it"><button class="tap" data-a="wopen" data-id="'+e.id+'"><span class="tx"><b>'+esc(e.w)+'</b>'+(e.m?' · '+esc(e.m):(e.d&&e.d[0]?' · '+esc(e.d[0].d.length>40?e.d[0].d.slice(0,40)+'…':e.d[0].d):''))+'<small>'+esc(it?it.e:'(원래 문장이 삭제됐어요)')+'</small></span></button>'
+        +(it?'<button class="chip sm" style="margin-right:12px" data-a="wstudy" data-id="'+e.id+'">복습</button>':'')+'</div>';
+    });
+  }else if(!L.length)h+='<div class="card empty"><b>복습할 문장이 아직 없어요</b>받아쓰기 중 "복습에 담기"를 누르거나<br>같은 문장을 두 번 틀리면 여기에 모여요.</div>';
   else{
-    h+='<div class="row" style="margin:0 0 12px"><span class="sub">'+L.length+'개 · 한글 뜻을 보고 영어를 떠올려 봐요</span><span class="grow"></span><button class="chip '+(s.shuf?'on':'')+'" data-a="shuf">섞기</button></div>';
+    h+='<div class="row" style="margin:0 0 10px"><span class="sub">한글 뜻을 보고 영어를 떠올려 봐요</span><span class="grow"></span><button class="chip '+(s.shuf?'on':'')+'" data-a="shuf">섞기</button></div>';
     L.forEach(i=>{
       const c=vidOf(i.cid);
       h+='<div class="card it"><button class="tap" data-a="fstudy" data-id="'+i.id+'"><span class="tx">'+esc(i.k||'(번역 없음)')+'<small>'+esc(c?c.title:'')+(i.miss?' · 틀린 '+i.miss+'번':'')+'</small></span></button>'
         +'<button class="dots" data-a="smenu" data-id="'+i.id+'" data-f="1">⋯</button></div>';
     });
+    cta='<button class="btn" data-a="fstudy">복습 시작</button>';
   }
-  view('복습',{big:1,html:h,cta:L.length?'<button class="btn" data-a="fstudy">복습 시작</button>':''});
+  view('복습',{big:1,html:h,cta:cta});
 };
 
 /* ===== 화면: 기록 (캘린더) ===== */
@@ -877,16 +890,16 @@ function dl(text,name){
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.download=name;
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500);
 }
-const pack=(cs,is,days)=>({app:'dictation',version:1,title:'듣기 받아쓰기',exportedAt:new Date().toISOString(),cats:cs,items:is,days:days||{}});
+const pack=(cs,is,days,words)=>({app:'dictation',version:1,title:'듣기 받아쓰기',exportedAt:new Date().toISOString(),cats:cs,items:is,days:days||{},words:words||[]});
 async function backup(){
   const d=ymd(),b=M.bk||{},n=(b.at===d?b.n:0)+1;
-  dl(JSON.stringify(pack(cats,items,M.days)),'받아쓰기백업_'+d+'_'+String(n).padStart(2,'0')+'.json');
+  dl(JSON.stringify(pack(cats,items,M.days,WD())),'받아쓰기백업_'+d+'_'+String(n).padStart(2,'0')+'.json');
   await mput('bk',{at:d,n:n});toast('백업 파일을 저장했어요');
   if(location.hash==='#/set')FN.setScr();
 }
 async function mergeData(o){
   if(!o||o.app!=='dictation')throw new Error('app');
-  const cm={},newC=[],newI=[],touched=[];let add=0,dup=0;
+  const cm={},im={},newC=[],newI=[],touched=[];let add=0,dup=0;
   const sig=(cid,x)=>cid+'|'+x.st+'|'+x.en+'|'+nz(x.e);
   (o.cats||[]).forEach(c=>{
     const ex=cats.find(x=>x.id===c.id)||cats.find(x=>x.vid===c.vid&&x.title===c.title)||newC.find(x=>x.vid===c.vid&&x.title===c.title);
@@ -900,7 +913,7 @@ async function mergeData(o){
     const s=sig(cid,i);
     const ex=items.find(x=>x.id===i.id&&x.cid===cid)||items.find(x=>sig(x.cid,x)===s)||newI.find(x=>sig(x.cid,x)===s);
     if(ex){
-      dup++;
+      im[i.id]=ex.id;dup++;
       if(i.fav&&!ex.fav){ex.fav=true;ex.fa=i.fa||Date.now();touched.push(ex)}
       if(N(i.miss)>N(ex.miss)){ex.miss=i.miss;touched.push(ex)}
       if(N(i.done)>N(ex.done)){ex.done=i.done;touched.push(ex)}
@@ -908,13 +921,27 @@ async function mergeData(o){
     }
     const n=Object.assign({},i,{cid:cid});
     if(items.some(x=>x.id===n.id)||newI.some(x=>x.id===n.id))n.id=uid();
-    newI.push(n);add++;
+    im[i.id]=n.id;newI.push(n);add++;
   });
   const days=M.days||{};
   Object.keys(o.days||{}).forEach(k=>{
     const v=o.days[k],c=days[k];
     if(!c)days[k]={n:N(v.n),ok:N(v.ok)};else{c.n=Math.max(N(c.n),N(v.n));c.ok=Math.max(N(c.ok),N(v.ok))}
   });
+  /* 단어장: 같은 단어는 합치고 문장 연결(refs)은 새 ID로 바꿔요 */
+  const wl=WD().map(w=>Object.assign({},w,{refs:(w.refs||[]).slice()}));let wch=false;
+  (o.words||[]).forEach(w=>{
+    if(!w||!w.w)return;
+    const rf=(w.refs||[]).map(r=>im[r]||r),ex=wl.find(x=>nz(x.w)===nz(w.w));
+    if(ex){
+      dup++;
+      if(!ex.m&&w.m){ex.m=w.m;wch=true}
+      if(!ex.x&&w.x){ex.x=w.x;wch=true}
+      if(!(ex.d&&ex.d.length)&&w.d&&w.d.length){ex.d=w.d;ex.ex=w.ex||[];ex.ph=w.ph||'';wch=true}
+      rf.forEach(r=>{if(!ex.refs.includes(r)){ex.refs.push(r);wch=true}});
+    }else{wl.push({id:wl.some(x=>x.id===w.id)?uid():(w.id||uid()),w:w.w,m:w.m||'',x:w.x||'',d:w.d||[],ex:w.ex||[],ph:w.ph||'',refs:rf,t:w.t||Date.now()});add++;wch=true}
+  });
+  if(wch)await mput('words',wl);
   await bulk('cats',newC);await bulk('items',newI.concat(touched));await mput('days',days);await reload();
   return{add:add,dup:dup};
 }
@@ -925,6 +952,68 @@ $('#fi').addEventListener('change',async e=>{
     openM('<div class="sh-t">복구를 마쳤어요</div><div class="card" style="margin:0 0 14px"><b style="font-size:18px">추가 '+r.add+' · 중복 제외 '+r.dup+'</b></div><div class="row"><button class="btn" data-a="mok">확인</button></div>');
   }catch(err){toast(err.message==='app'?'이 앱의 백업 파일이 아니에요':'파일을 읽지 못했어요')}
 });
+
+/* ===== 단어장 ===== */
+const WD=()=>Array.isArray(M.words)?M.words:[];
+const wfind=w=>WD().find(x=>nz(x.w)===nz(w));
+const wsrc=e=>{const r=(e.refs||[]).slice().reverse().find(id=>itemOf(id));return r||''};   /* 가장 최근에 담은 문장 */
+let FVT='s';   /* 복습 화면 탭: s=문장, w=단어장 */
+function hiW(text,w){
+  const re=new RegExp("(^|[^A-Za-z'])("+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+")(?![A-Za-z'])",'i');
+  const m=re.exec(text);if(!m)return esc(text);
+  const a=m.index+m[1].length;
+  return esc(text.slice(0,a))+'<mark class="wmk">'+esc(m[2])+'</mark>'+esc(text.slice(a+m[2].length));
+}
+/* 영어 뜻: 무료 사전(dictionaryapi.dev, 키 없음). 한 번 불러오면 단어장에 저장해서 인터넷 없이도 봐요 */
+const DC={};let DCUR=null;
+function dictParse(j){
+  const e=j&&j[0];if(!e)return null;
+  const ph=e.phonetic||((e.phonetics||[]).find(p=>p.text)||{}).text||'';
+  const defs=[],ex=[];
+  (e.meanings||[]).slice(0,3).forEach(m=>{
+    (m.definitions||[]).slice(0,2).forEach(d=>{
+      if(d.definition)defs.push({p:m.partOfSpeech||'',d:d.definition});
+      if(d.example&&ex.length<3&&!ex.includes(d.example))ex.push(d.example);
+    });
+  });
+  return defs.length?{ph:ph,defs:defs,ex:ex}:null;
+}
+async function dictGet(w){
+  const k=nz(w),sv=wfind(w);
+  if(sv&&sv.d&&sv.d.length)return{ph:sv.ph||'',defs:sv.d,ex:sv.ex||[]};
+  if(DC[k])return DC[k];
+  const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),7000);
+  try{
+    const r=await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(w.toLowerCase()),{signal:ac.signal});
+    if(!r.ok)throw new Error('nf');
+    const d=dictParse(await r.json());
+    if(!d)throw new Error('nf');
+    return DC[k]=d;
+  }finally{clearTimeout(tm)}
+}
+function dictHTML(d,w){
+  return (d.ph?'<div class="sub">'+esc(d.ph)+'</div>':'')
+    +d.defs.map(x=>'<div class="wex">'+(x.p?'<small style="display:inline;margin-right:6px">'+esc(x.p)+'</small>':'')+esc(x.d)+'</div>').join('')
+    +(d.ex.length?'<div class="sub" style="margin-top:8px">예문</div>'+d.ex.map(t=>'<div class="wex" style="font-style:italic">'+hiW(t,w)+'</div>').join(''):'');
+}
+function openWord(w,sid){
+  const e=wfind(w),srcs=[],k=nz(w);
+  DCUR=null;
+  const add=id=>{const it=id&&itemOf(id);if(it&&!srcs.some(x=>x.id===it.id))srcs.push(it)};
+  add(sid);(e?e.refs.slice().reverse():[]).forEach(add);
+  const ex=srcs.slice(0,3).map(it=>'<div class="wex"><div>'+hiW(it.e,w)+'</div>'+(it.k?'<small>'+esc(it.k)+'</small>':'')+'</div>').join('');
+  openM('<div class="sh-t" style="font-size:22px">'+esc(w)+'</div>'
+    +'<div id="wd-dict" data-w="'+esc(k)+'" class="sub">영어 뜻을 불러오는 중…</div>'
+    +(ex?'<div class="sub" style="margin:10px 0 2px">쓰인 문장</div>'+ex:'')
+    +'<label>한국어 뜻 (선택)</label><input id="wd-m" class="in" autocomplete="off" placeholder="직접 적어 두면 단어장에 보여요" value="'+esc(e?e.m:'')+'">'
+    +'<div class="row" style="margin-top:14px"><a class="btn sec" style="text-decoration:none;display:flex;align-items:center;justify-content:center" href="https://en.dict.naver.com/#/search?query='+encodeURIComponent(w)+'" target="_blank" rel="noopener">사전 열기</a>'
+    +'<button class="btn" data-a="wsave" data-w="'+esc(w)+'" data-sid="'+esc(sid||'')+'">'+(e?'복습 저장':'복습에 담기')+'</button></div>'
+    +(e?'<button class="lnk" data-a="wdel" data-w="'+esc(w)+'">단어장에서 빼기</button>':''));
+  const put_=h=>{const el=$('#wd-dict');if(el&&el.dataset.w===k)el.innerHTML=h};
+  dictGet(w).then(d=>{DCUR={k:k,d:d};put_(dictHTML(d,w))}).catch(er=>{
+    put_(navigator.onLine===false||(er&&er.name==='TypeError')?'인터넷에 연결돼 있지 않아요. 연결되면 다시 눌러 보세요.':'영어 뜻을 찾지 못했어요. "사전 열기"로 확인해 보세요.');
+  });
+}
 
 /* ===== 시트: 문장·영상 메뉴 ===== */
 function editSheet(id){
@@ -1054,6 +1143,32 @@ const ACT={
     if(S.gr.every(g=>g==='ok'||g==='rv'))finish();else paintStudy();
   },
   snext:()=>studyGo(1),
+  retry:()=>{
+    Object.assign(S,{vals:[],gr:[],st:'in',hint:0,hinted:false,rvd:false,tries:0,perfect:false});
+    clearTimeout(dfT);mput('draft',null);paintStudy(true);
+  },
+  word:a=>{const t=S&&S.tk[Number(a.dataset.i)];if(t)openWord(t.core,S.sid)},
+  wsave:a=>{
+    const w=a.dataset.w,sid=a.dataset.sid,m=$('#wd-m').value.trim();
+    const L=WD().slice();let e=L.find(v=>nz(v.w)===nz(w));
+    const dc=DCUR&&DCUR.k===nz(w)?DCUR.d:null;
+    if(e){e.m=m;if(sid&&!e.refs.includes(sid))e.refs.push(sid);if(dc){e.d=dc.defs;e.ex=dc.ex;e.ph=dc.ph}}
+    else L.unshift({id:uid(),w:w,m:m,x:'',d:dc?dc.defs:[],ex:dc?dc.ex:[],ph:dc?dc.ph:'',refs:sid?[sid]:[],t:Date.now()});
+    mput('words',L);toast('단어장에 담았어요');
+    closeM(()=>{if(location.hash==='#/fav')FN.favScr()});
+  },
+  wdel:a=>{
+    const w=a.dataset.w,old=WD().slice();
+    mput('words',old.filter(v=>nz(v.w)!==nz(w)));
+    closeM(()=>{if(location.hash==='#/fav')FN.favScr();toast('단어장에서 뺐어요',()=>{mput('words',old);if(location.hash==='#/fav')FN.favScr()})});
+  },
+  ftab:a=>{FVT=a.dataset.t;FN.favScr()},
+  wopen:a=>{const e=WD().find(v=>v.id===a.dataset.id);if(e)openWord(e.w,wsrc(e))},
+  wstudy:a=>{
+    const e=WD().find(v=>v.id===a.dataset.id),sid=e&&wsrc(e),it=sid&&itemOf(sid);
+    if(!it){toast('이 단어의 원래 문장이 삭제됐어요');return}
+    go('#/study/'+encodeURIComponent(it.cid)+'/'+encodeURIComponent(it.id));
+  },
   skip:a=>studyGo(Number(a.dataset.d)),
   plretry:()=>{
     const v=PL.vid;PL.kill();PL.host();
