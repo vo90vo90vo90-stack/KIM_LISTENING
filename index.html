@@ -803,6 +803,42 @@ function mkParse(txt){
 }
 const SAMPLE='0:05 | 0:08 | How are you doing today? | 오늘 어떻게 지내세요?\n0:09 | 0:12 | I\'m doing great, thanks for asking. | 잘 지내요, 물어봐 줘서 고마워요.';
 let MK={id:'',rows:[]};
+/* AI에게 대본을 시킬 때 쓰는 요청문 (영상 만들기 화면의 복사 버튼) */
+const AIP=`너는 유튜브 영상 대본을 영어 받아쓰기 앱 입력 양식으로 바꿔 주는 도구야.
+설명, 인사, 제목, 번호, 마크다운 없이 결과만 출력해. 결과는 코드블록 하나에 넣어서, 그대로 복사해 붙여넣을 수 있게 해.
+
+[출력 양식]
+한 줄에 한 문장, 아래 4칸을 | 로 구분해.
+시작 | 종료 | 영어 | 한글
+
+예시
+0:05 | 0:08 | How are you doing today? | 오늘 어떻게 지내세요?
+0:08.5 | 0:12 | I'm doing great, thanks for asking. | 잘 지내요, 물어봐 줘서 고마워요.
+
+[시간 규칙]
+- 형식은 분:초 (1:23), 소수점 한 자리까지 가능 (1:23.5), 1시간이 넘으면 시:분:초 (1:02:03).
+- 시간은 영상 속 실제 말소리 기준으로만 적어. 지어내거나 균등하게 나누지 마.
+- 시작은 첫 단어가 들리기 0.1~0.2초 전, 종료는 마지막 단어가 끝난 직후로 잡아.
+- 앞 문장 종료와 뒤 문장 시작은 말이 이어지면 같은 값으로 붙이고, 말이 쉬는 구간이 있으면 그만큼 비워 둬.
+- 시간 순서대로 쓰고, 겹치면 안 되고, 종료는 항상 시작보다 커야 해.
+
+[문장 나누기 규칙]
+- 말하는 사람이 숨을 쉬거나 잠깐 쉬는 지점에서 나눠. 받아쓰기하기 좋게 한 줄은 보통 5~15단어, 길어도 3~12초 안으로 해.
+- 의미 덩어리 중간에서 끊지 마. 5단어보다 짧은 조각은 앞이나 뒤 문장과 합쳐.
+- 영어는 실제로 말한 그대로 적고, 대소문자와 문장부호(. , ? !)를 정상으로 써. 말 더듬음이나 군말(um, uh)은 빼.
+- 배경음악, 박수, 화자 이름, [Music] 같은 말소리가 아닌 표시는 넣지 마.
+- 영어와 한글 안에는 | 기호를 쓰지 마.
+
+[한글 규칙]
+- 자연스러운 한국어 한 줄로, 영어 문장과 뜻이 딱 맞게 번역해.
+
+[출력 전 검증]
+출력하기 전에 아래를 스스로 확인하고, 어긋난 줄은 고친 뒤에 출력해.
+1. 모든 줄이 4칸이고 시간 형식이 맞는지
+2. 시작이 앞 줄 종료 이후인지, 종료가 시작보다 큰지
+3. 각 줄 길이에 맞는 말 속도인지 (영어 약 2~4단어/초, 벗어나면 시간을 다시 확인)
+4. 영상의 실제 말소리와 시간이 맞는지 (처음, 중간, 끝 부분을 특히 확인)
+시간을 확인할 수 없으면 시간을 지어내지 말고, 출력 대신 "타임스탬프가 있는 대본이 필요해요"라고만 답해.`;
 FN.makeScr=function(id){
   const c=id&&vidOf(id);
   if(id&&!c){goR('#/vids');return}
@@ -816,7 +852,7 @@ FN.makeScr=function(id){
     +'<div class="card"><label>문장 한꺼번에 넣기</label><div class="fmt">시작 | 종료 | 영어 | 한글</div>'
     +'<div class="sub">한 줄에 문장 하나예요. 시간은 1:23 처럼 써요. 엑셀·시트에서 4칸을 복사해 붙여넣어도 돼요.</div>'
     +'<textarea id="mk-tpl" class="in" style="margin-top:10px" rows="8" spellcheck="false" autocapitalize="off" placeholder="0:05 | 0:08 | How are you? | 잘 지내세요?">'+esc(tpl)+'</textarea>'
-    +'<button class="lnk" data-a="mksample">예시 넣어 보기</button></div>'
+    +'<div class="row" style="margin-top:6px"><button class="lnk" data-a="mksample">예시 넣어 보기</button><span class="grow"></span><button class="chip sm on" data-a="aicopy">AI 요청문 복사</button></div></div>'
     +'<div id="mk-pv"></div>';
   view(c?'영상 수정':'영상 만들기',{back:1,parent:c?'#/vid/'+id:'#/vids',ha:'<button data-a="mkclear">비우기</button>',html:h,cta:'<button class="btn" data-a="mksave">저장하기</button>'});
   mkPreview();
@@ -1191,6 +1227,13 @@ const ACT={
     $('#mk-url').value='';$('#mk-title').value='';$('#mk-tpl').value='';mkPreview();
   },
   mkplay:a=>{const r=MK.rows[Number(a.dataset.i)];if(r&&!r.err){if(PL.errc){toast('영상을 재생할 수 없어요. 링크를 확인해 주세요');return}PL.play(r.st,r.en,1,false)}},
+  aicopy:async()=>{
+    let ok=false;
+    try{await navigator.clipboard.writeText(AIP);ok=true}catch(e){
+      try{const t=document.createElement('textarea');t.value=AIP;t.style.cssText='position:fixed;opacity:0;top:0';document.body.appendChild(t);t.select();ok=document.execCommand('copy');t.remove()}catch(e2){}
+    }
+    toast(ok?'복사했어요. AI에게 붙여넣고 아래에 대본을 이어서 넣어 주세요':'복사하지 못했어요. 브라우저 권한을 확인해 주세요');
+  },
   mksave:()=>mkSave(),
   /* 메뉴 */
   vmenu:a=>{
