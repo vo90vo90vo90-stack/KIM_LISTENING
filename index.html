@@ -493,16 +493,7 @@ addEventListener('popstate',e=>{
 });
 function saveUI(){mput('ui',Object.assign({},M.ui,{route:location.hash||'#/',scroll:scrollY}))}
 addEventListener('pagehide',saveUI);
-let hidAt=0;
-document.addEventListener('visibilitychange',()=>{
-  if(document.hidden){saveUI();hidAt=Date.now();return}
-  /* 화면을 껐다가 다시 들어오면 홈으로 돌아가요 (잠깐 앱을 벗어난 건 무시) */
-  const away=hidAt&&Date.now()-hidAt>1500;hidAt=0;
-  if(away&&location.hash!=='#/'){
-    if(MOPEN){hideM();PEND=null}
-    history.replaceState({d:0},'','#/');route();scrollTo(0,0);
-  }
-});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveUI()});
 let scT=0;
 addEventListener('scroll',()=>{clearTimeout(scT);scT=setTimeout(()=>{SCR[location.hash]=scrollY},120)},{passive:true});
 
@@ -1310,10 +1301,13 @@ addEventListener('resize',()=>{if(document.body.classList.contains('kb')){clearT
   catch(e){$('#app').innerHTML='<div class="card empty"><b>저장소를 열지 못했어요</b>브라우저를 다시 시작해 주세요.</div>';return}
   if(!M.first)await mput('first',ymd());
   history.scrollRestoration='manual';
-  const h='#/';   /* 앱을 다시 열면 항상 홈에서 시작해요 */
+  let h=location.hash,restored=false;   /* 앱을 다시 열면 마지막에 보던 화면으로 돌아가요 */
+  if((!h||h==='#/')&&M.ui&&M.ui.route&&M.ui.route!=='#/'){h=M.ui.route;restored=true}
+  h=h||'#/';
   history.replaceState({base:1,d:0},'',h);
   history.pushState({d:0},'',h);
   route();
+  if(restored&&M.ui.scroll)scrollTo(0,M.ui.scroll);
 })();
 </script>
 </body>
