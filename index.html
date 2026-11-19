@@ -550,7 +550,7 @@ FN.vidScr=function(id){
 };
 
 /* ===== 화면: 최적화 (영상 전체 싱크 조정) ===== */
-const OP={cid:'',i:0,from:false,tm:0};
+const OP={cid:'',i:0,from:false,tm:0};   /* tm: 예전 타이머(지금은 안 써요) */
 FN.optScr=function(){
   clearInterval(OP.tm);
   if(!cats.length){view('최적화',{big:1,html:'<div class="empty">영상을 먼저 추가해 주세요.<br>그러면 여기서 소리와 자막의 싱크를 한꺼번에 맞출 수 있어요.</div>'});return}
@@ -559,36 +559,31 @@ FN.optScr=function(){
   if(OP.i>=L.length)OP.i=0;
   const opts=cats.map(c=>'<option value="'+esc(c.id)+'"'+(c.id===OP.cid?' selected':'')+'>'+esc(c.title)+'</option>').join('');
   const sw=[-1,-0.5,-0.1,0.1,0.5,1].map(v=>'<button class="chip sm" data-a="opshift" data-v="'+v+'">'+(v>0?'+':'−')+Math.abs(v)+'</button>').join('');
-  view('최적화',{big:1,html:'<select class="in" id="optsel" aria-label="영상 선택">'+opts+'</select>'
-    +(L.length?'<div style="margin-top:8px">'+ytHTML('o')+'</div>'
-    +'<div class="card" style="margin-top:8px" id="opcard"></div>'
-    +'<div class="row2"><button class="chip" data-a="opskip" data-d="-1">‹ 이전</button><button class="chip on" id="optog" data-a="optplay">이어서 듣기</button><button class="chip" data-a="opskip" data-d="1">다음 ›</button></div>'
-    +'<div class="card" style="margin-top:8px"><div class="sub">소리보다 구간이 빠르면 +, 늦으면 −</div><div class="sw">'+sw+'</div>'
-    +'<div class="row2"><button class="chip sm" data-a="opnow">지금 소리 = 이 문장 시작</button><button class="chip sm" id="opsc" data-a="opscope"></button><button class="chip sm" id="oplk" data-a="oplink"></button></div></div>'
+  view('최적화',{big:1,html:'<select class="in" id="optsel" aria-label="영상 선택" style="margin-bottom:8px">'+opts+'</select>'
+    +(L.length?'<div class="vrow"><div class="vl">'+ytHTML('o')+'</div><div class="vr" id="opctl"></div></div>'
+    +'<div class="card" id="opcard"></div><div id="opadj"></div>'
+    +'<div class="row2"><button class="chip" data-a="opskip" data-d="-1">‹ 이전 문장</button><button class="chip" data-a="opskip" data-d="1">다음 문장 ›</button></div>'
+    +'<div class="card" style="margin-top:8px"><div class="sub">전체 싱크 · 소리보다 구간이 빠르면 +, 늦으면 −</div><div class="sw">'+sw+'</div>'
+    +'<div class="row2"><button class="chip sm" data-a="opnow">지금 소리 = 이 문장 시작</button><button class="chip sm" id="opsc" data-a="opscope"></button></div></div>'
+    +'<div style="height:64px"></div>'+'<button id="tog" class="circ fab" data-a="optplay" aria-label="재생 / 일시정지">'+IC_PLAY+IC_PAUSE+'</button>'
     :'<div class="empty">이 영상에는 문장이 없어요.<br>영상 탭에서 문장을 먼저 추가해 주세요.</div>')});
   if(!L.length)return;
   PL.use(vidOf(OP.cid).vid);
   paintOpt();
-  OP.tm=setInterval(()=>{
-    const b=$('#optog');if(b)b.textContent=PL.st===1?'멈춤':'이어서 듣기';
-    if(!(PL.p&&PL.ready&&PL.seg&&PL.st===1))return;
-    let t;try{t=PL.p.getCurrentTime()}catch(e){return}
-    const L=itemsOf(OP.cid);let j=-1;
-    for(let k=0;k<L.length;k++){if(L[k].st<=t+0.05)j=k;else break}
-    if(j>=0&&j!==OP.i){OP.i=j;paintOpt()}
-  },150);
 };
 function paintOpt(){
   const el=$('#opcard');if(!el)return;
   const L=itemsOf(OP.cid),it=L[OP.i];if(!it)return;
   el.innerHTML='<div class="sub">'+(OP.i+1)+' / '+L.length+' · '+fT(it.st)+' ~ '+fT(it.en)+'</div><div class="en" style="margin:3px 0 0">'+esc(it.e)+'</div>'+(it.k?'<div class="kol" style="margin:2px 0 0">'+esc(it.k)+'</div>':'');
-  const pv=L[OP.i-1],lq=$('#oplk');if(lq){lq.style.display=pv?'':'none';if(pv)lq.textContent='앞 '+(lk(pv,it)?'연동':'개별 · '+(Math.round((it.st-pv.en)*10)/10)+'초')}
+  $('#opctl').innerHTML=ctlChips();
+  $('#opadj').innerHTML=adjHTML(it);
   const sc=$('#opsc');if(sc)sc.textContent=OP.from?'이 문장부터 옮기기':'전체 문장 옮기기';
 }
 function optStart(i){
-  const L=itemsOf(OP.cid);if(!L[i])return;
+  const L=itemsOf(OP.cid),it=L[i];if(!it)return;
   OP.i=i;paintOpt();
-  PL.play(L[i].st,L[L.length-1].en+1,1,false);   /* 끝까지 이어서 재생 */
+  const s=set();
+  PL.play(it.st,it.en,s.rate,s.loop);   /* 한 문장이 끝나면 자동으로 멈춰요 */
 }
 function optShift(d){
   const L=itemsOf(OP.cid),from=OP.from?OP.i:0,tg=L.slice(from);
@@ -602,7 +597,7 @@ function optShift(d){
     snap.forEach(o=>{const x=itemOf(o.id);if(x){x.st=o.st;x.en=o.en;put('items',x)}});paintOpt();
   });
   paintOpt();
-  const it=L[OP.i];if(it)PL.play(it.st,it.en,1,false);   /* 바뀐 구간을 바로 들려줘요 */
+  const it=L[OP.i];if(it)PL.play(it.st,it.en,set().rate,false);   /* 바뀐 구간을 바로 들려줘요 */
 }
 
 /* ===== 화면: 받아쓰기 ===== */
@@ -634,6 +629,21 @@ function studyLoad(sid,foc){
   paintCtl();paintStudy(foc);
   const s=set();PL.play(it.st,it.en,s.rate,s.loop);
 }
+function adjHTML(it){
+  const row=(k,lb,v)=>'<div class="ar"><span>'+lb+'</span><button data-a="adj" data-k="'+k+'" data-v="-0.5">−0.5</button><b>'+fT(v)+'</b><button data-a="adj" data-k="'+k+'" data-v="0.5">+0.5</button></div>';
+  const L=itemsOf(it.cid),j=L.findIndex(x=>x.id===it.id),pv=L[j-1],nx=L[j+1];
+  const lb=(a,b,t)=>!a||!b?'':'<button class="chip sm" data-a="adjlink" data-k="'+t+'">'+(t==='p'?'앞 ':'뒷 ')+(lk(a,b)?'연동':'개별 · '+(Math.round((b.st-a.en)*10)/10)+'초')+'</button>';
+  return '<div class="card adj">'+row('st','시작',it.st)+row('en','끝',it.en)+'<div class="lk">'+lb(pv,it,'p')+lb(it,nx,'n')+'</div></div>';
+}
+const inOpt=()=>/^#\/opt/.test(location.hash);
+const ci=()=>inOpt()?itemsOf(OP.cid)[OP.i]:cur();      /* 지금 조정 중인 문장 */
+const adjPaint=()=>inOpt()?paintOpt():paintCtl();
+function ctlChips(){
+  const s=set();
+  return '<div class="row" style="gap:6px;flex-wrap:nowrap">'
+    +[0.5,0.75,1].map(r=>'<button class="chip sm '+(s.rate===r?'on':'')+'" data-a="rate" data-r="'+r+'">'+r+'x</button>').join('')+'</div>'
+    +'<button class="chip sm '+(s.loop?'on':'')+'" data-a="loop">구간 반복</button>';
+}
 function paintCtl(){
   const s=set(),el=$('#sctl');if(!el)return;
   const it=cur();
@@ -643,12 +653,7 @@ function paintCtl(){
     +'<button class="chip sm '+(S.adj?'on':'')+'" data-a="adjtog">구간 조정</button>';
   const l=$('#slis');if(l)l.textContent='들은 횟수 '+S.listens+'번';
   let h='';
-  if(S.adj){
-    const row=(k,lb,v)=>'<div class="ar"><span>'+lb+'</span><button data-a="adj" data-k="'+k+'" data-v="-0.5">−0.5</button><b>'+fT(v)+'</b><button data-a="adj" data-k="'+k+'" data-v="0.5">+0.5</button></div>';
-    const L=itemsOf(it.cid),j=L.findIndex(x=>x.id===it.id),pv=L[j-1],nx=L[j+1];
-    const lb=(a,b,t)=>!a||!b?'':'<button class="chip sm" data-a="adjlink" data-k="'+t+'">'+(t==='p'?'앞 ':'뒷 ')+(lk(a,b)?'연동':'개별 · '+(Math.round((b.st-a.en)*10)/10)+'초')+'</button>';
-    h='<div class="card adj">'+row('st','시작',it.st)+row('en','끝',it.en)+'<div class="lk">'+lb(pv,it,'p')+lb(it,nx,'n')+'</div></div>';
-  }
+  if(S.adj)h=adjHTML(it);
   $('#adjp').innerHTML=h;
   const t=$('#tog');if(t)t.classList.toggle('pl',PL.st===1);
 }
@@ -956,7 +961,7 @@ const ACT={
   },
   adjtog:()=>{S.adj=!S.adj;paintCtl()},
   adj:a=>{
-    const it=cur(),k=a.dataset.k,v=Number(a.dataset.v),r=x=>Math.round(x*10)/10;
+    const it=ci(),k=a.dataset.k,v=Number(a.dataset.v),r=x=>Math.round(x*10)/10;
     const L=itemsOf(it.cid),j=L.findIndex(x=>x.id===it.id),pv=L[j-1],nx=L[j+1];
     let st=it.st,en=it.en,ch=null;
     if(k==='st'){
@@ -974,20 +979,19 @@ const ACT={
         ch=nx;ch.st=en;
       }
     }
-    it.st=st;it.en=en;put('items',it);if(ch)put('items',ch);paintCtl();
+    it.st=st;it.en=en;put('items',it);if(ch)put('items',ch);adjPaint();
     /* 시작을 바꾸면 시작점부터 3초, 끝을 바꾸면 끝나기 3초 전부터 들려줘요 */
     const s=set();
     if(k==='st')PL.play(st,Math.min(en,st+3),s.rate,false);
     else PL.play(Math.max(st,en-3),en,s.rate,false);
   },
   adjlink:a=>{
-    const it=cur();linkTog(it,a.dataset.k);paintCtl();
+    const it=ci();linkTog(it,a.dataset.k);adjPaint();
   },
-  oplink:()=>{const it=itemsOf(OP.cid)[OP.i];if(it){linkTog(it,'p');paintOpt()}},
   kotog:()=>{if(!S)return;S.kow=!S.kow;const e=$('.kol');if(e)e.classList.toggle('x',!!S.kow)},
   /* 최적화 */
   optplay:()=>{
-    const L=itemsOf(OP.cid);if(!L.length||!$('#opcard'))return;
+    const it=itemsOf(OP.cid)[OP.i];if(!it||!$('#opcard'))return;
     if(PL.p&&PL.ready&&PL.seg&&PL.st===1){try{PL.p.pauseVideo()}catch(e){}return}
     if(PL.p&&PL.ready&&PL.seg&&PL.st===2){PL.want=false;try{PL.p.playVideo()}catch(e){}return}
     optStart(OP.i);
@@ -1007,11 +1011,11 @@ const ACT={
     if(!d){toast('이미 맞아요');return}
     optShift(d);
   },
-  loop:()=>{const v=!set().loop;setSave({loop:v});PL.loop=v;if(S&&/^#\/study/.test(location.hash))paintCtl();else FN.setScr()},
+  loop:()=>{const v=!set().loop;setSave({loop:v});PL.loop=v;if(inOpt())paintOpt();else if(S&&/^#\/study/.test(location.hash))paintCtl();else FN.setScr()},
   rate:a=>{
     const r=Number(a.dataset.r);setSave({rate:r});
     try{PL.p&&PL.ready&&PL.p.setPlaybackRate(r)}catch(e){}
-    if(S&&/^#\/study/.test(location.hash))paintCtl();else FN.setScr();
+    if(inOpt())paintOpt();else if(S&&/^#\/study/.test(location.hash))paintCtl();else FN.setScr();
   },
   hint:()=>{if(S.hint<2){S.hint++;S.hinted=true;paintStudy()}},
   star:()=>{
