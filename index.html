@@ -31,12 +31,14 @@ label{display:block;font-size:13px;font-weight:600;color:var(--s);margin:10px 0 
 label:first-child{margin-top:0}
 
 /* ===== 레이아웃 ===== */
-#hd{position:sticky;top:0;z-index:20;display:flex;align-items:center;height:calc(46px + env(safe-area-inset-top));padding:env(safe-area-inset-top) max(6px,env(safe-area-inset-right)) 0 max(6px,env(safe-area-inset-left));background:var(--bg)}
-#hb{display:none;width:44px;height:44px;font-size:30px;line-height:1}
-#hb.on{display:block}
-#ht{flex:1;padding-left:10px;font-size:18px;font-weight:800;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hd{position:sticky;top:0;z-index:20;display:flex;align-items:center;height:calc(58px + env(safe-area-inset-top));padding:env(safe-area-inset-top) max(6px,env(safe-area-inset-right)) 0 max(6px,env(safe-area-inset-left));background:var(--bg)}
+#hb{display:none;width:46px;height:46px;border-radius:50%;background:var(--c);color:var(--t);align-items:center;justify-content:center}
+#hb.on{display:flex}
+#hb svg,#ha svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+#ht{flex:1;padding-left:12px;font-size:19px;line-height:46px;font-weight:800;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #ha{display:flex}
-#ha button[data-a=skip]{text-decoration:none;font-size:30px;font-weight:600;line-height:1;min-width:60px;height:40px;margin-left:8px;border-radius:20px;background:var(--c)}
+#ha{gap:8px;align-items:center}
+#ha button[data-a=skip]{display:flex;align-items:center;justify-content:center;min-width:82px;height:46px;padding:0;border-radius:23px;background:var(--p);color:var(--bg)}
 #ha button{min-width:44px;height:44px;padding:0 10px;color:var(--t);font-weight:600;font-size:15px}
 main{padding:4px max(16px,env(safe-area-inset-right)) calc(112px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
 nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;background:var(--bg);border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom)}
@@ -213,7 +215,7 @@ textarea.in{height:auto;padding:12px 14px;resize:vertical;line-height:1.5}
 </style>
 </head>
 <body>
-<header id="hd"><button id="hb" data-a="back" aria-label="뒤로">‹</button><div id="ht"></div><div id="ha"></div></header>
+<header id="hd"><button id="hb" data-a="back" aria-label="뒤로"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div id="ht"></div><div id="ha"></div></header>
 <main id="app"></main>
 <div id="cta"></div>
 <nav id="nav">
@@ -623,7 +625,7 @@ FN.studyScr=function(ck,sid){
   S={ck:ck,q:q};
   const par=ck==='fav'?'#/fav':'#/vid/'+ck;
   view('',{back:1,nonav:1,parent:par,
-    ha:'<button data-a="skip" data-d="-1" aria-label="이전 문장">‹</button><button data-a="skip" data-d="1" aria-label="다음 문장">›</button>',
+    ha:'<button data-a="skip" data-d="-1" aria-label="이전 문장"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><button data-a="skip" data-d="1" aria-label="다음 문장"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>',
     html:'<div class="vrow"><div class="vl">'+ytHTML(1)+'<div class="sub" id="slis"></div></div><div class="vr" id="sctl"></div></div><div id="adjp"></div><div id="sbody"></div>'
       +'<button id="rep" class="fab rp" data-a="rep" aria-label="정지한 곳에서 뒤로 반복" disabled>반복</button><button id="tog" class="circ fab" data-a="play" aria-label="재생 / 일시정지">'+IC_PLAY+IC_PAUSE+'</button>',cta:'<div style="display:contents" id="scta"></div>'});
   PL.onCount=()=>{S.listens++;paintCtl()};
