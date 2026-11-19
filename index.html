@@ -40,6 +40,7 @@ label:first-child{margin-top:0}
 #ha{gap:8px;align-items:center}
 #ha button[data-a=skip]{display:flex;align-items:center;justify-content:center;min-width:82px;height:46px;padding:0;border-radius:23px;background:var(--p);color:var(--bg)}
 #ha button{min-width:44px;height:44px;padding:0 10px;color:var(--t);font-weight:600;font-size:15px}
+body.kb main{padding-bottom:calc(75vh + env(safe-area-inset-bottom))}
 main{padding:4px max(16px,env(safe-area-inset-right)) calc(112px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
 nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;background:var(--bg);border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom)}
 nav button{flex:1;height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:10.5px;color:var(--s)}
@@ -1276,6 +1277,29 @@ document.addEventListener('keydown',e=>{
     if(k<ins.length-1)ins[k+1].focus();else grade();
   }else if(e.key==='Backspace'&&!t.value&&k>0){e.preventDefault();ins[k-1].focus()}
 });
+
+/* ===== 가상 키보드가 떠도 입력 칸이 가려지지 않게 ===== */
+function kbScroll(){
+  const el=document.activeElement;
+  if(!el||!el.classList||!el.classList.contains('wi')||el.readOnly)return;
+  const hd=$('#hd').getBoundingClientRect().bottom,cta=$('#cta');
+  const bt=cta&&cta.offsetHeight?cta.getBoundingClientRect().top:innerHeight;
+  const card=el.closest('.card')||el,cr=card.getBoundingClientRect(),er=el.getBoundingClientRect();
+  let d=0;
+  if(cr.height<=bt-hd-16)d=cr.top-(hd+8);                         /* 입력 카드가 들어가면 카드를 맨 위로 */
+  else if(er.top<hd+8||er.bottom>bt-8)d=er.top-(hd+(bt-hd)/2-er.height/2);   /* 아니면 입력 칸을 가운데로 */
+  if(Math.abs(d)>4)scrollBy({top:d,behavior:'smooth'});
+}
+let kbT=0;
+document.addEventListener('focusin',e=>{
+  if(!e.target.classList||!e.target.classList.contains('wi')||e.target.readOnly)return;
+  document.body.classList.add('kb');
+  clearTimeout(kbT);kbT=setTimeout(kbScroll,60);setTimeout(kbScroll,350);   /* 키보드가 다 올라온 뒤 한 번 더 */
+});
+document.addEventListener('focusout',()=>{
+  setTimeout(()=>{const a=document.activeElement;if(!(a&&a.classList&&a.classList.contains('wi')))document.body.classList.remove('kb')},250);
+});
+addEventListener('resize',()=>{if(document.body.classList.contains('kb')){clearTimeout(kbT);kbT=setTimeout(kbScroll,120)}});
 
 /* ===== 시작 ===== */
 (async function start(){
