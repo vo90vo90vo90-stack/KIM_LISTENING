@@ -857,6 +857,7 @@ FN.makeScr=function(id){
   view(c?'영상 수정':'영상 만들기',{back:1,parent:c?'#/vid/'+id:'#/vids',ha:'<button data-a="mkclear">비우기</button>',html:h,cta:'<button class="btn" data-a="mksave">저장하기</button>'});
   mkPreview();
 };
+const CHUNK=20;   /* 새 영상에 문장이 이보다 많으면 이만큼씩 잘라서 여러 영상으로 저장해요 */
 function mkPreview(){
   const url=$('#mk-url').value,tpl=$('#mk-tpl').value,vid=ytId(url);
   MK.rows=mkParse(tpl);
@@ -866,6 +867,7 @@ function mkPreview(){
   let h='';
   if(url.trim()&&!vid)h+='<div class="card"><span class="er red">유튜브 링크를 알아볼 수 없어요. 주소 전체를 붙여넣어 주세요.</span></div>';
   if(MK.rows.length){
+    if(!MK.id&&ok>CHUNK)h+='<div class="card"><b>'+CHUNK+'문장씩 '+Math.ceil(ok/CHUNK)+'개 영상으로 나눠 저장돼요</b><div class="sub">제목 뒤에 #1/'+Math.ceil(ok/CHUNK)+' 처럼 번호가 붙어요</div></div>';
     h+='<div class="card pv"><div class="sub" style="margin-bottom:6px">미리보기 · 문장 '+ok+'개'+(bad?' · <span class="red">오류 '+bad+'줄</span>':'')+' · ▶를 누르면 그 구간을 들어볼 수 있어요</div>';
     MK.rows.forEach((r,i)=>{
       h+='<div class="r">'+(r.err?'<span style="width:36px"></span>':'<button data-a="mkplay" data-i="'+i+'">▶</button>')
@@ -886,6 +888,21 @@ async function mkSave(){
   if(bad){toast('오류가 있는 줄이 '+bad+'개 있어요. 미리보기를 확인해 주세요');return}
   let c=MK.id&&vidOf(MK.id);
   const isNew=!c;
+  if(isNew&&rows.length>CHUNK){   /* 긴 영상: 20문장씩 잘라서 '제목 #1/37' 형태로 여러 개 저장 */
+    const n=Math.ceil(rows.length/CHUNK),base=$('#mk-title').value.trim()||('영상 '+(cats.length+1)),now=Date.now();
+    const cs=[],out=[];
+    for(let k=0;k<n;k++){
+      const cc={id:uid(),ts:now+(n-k),vid:vid,url:url,title:base+' #'+(k+1)+'/'+n};   /* ts: #1이 목록 맨 위에 오게 */
+      cs.push(cc);
+      rows.slice(k*CHUNK,(k+1)*CHUNK).forEach((r,i)=>out.push({id:uid(),cid:cc.id,o:i,st:r.st,en:r.en,e:r.e,k:r.k}));
+    }
+    for(const cc of cs)await put('cats',cc);
+    await bulk('items',out,[]);
+    clearTimeout(dfT);await mput('draft',null);await reload();
+    toast(rows.length+'문장을 '+n+'개 영상으로 나눠 저장했어요');
+    goR('#/vids');
+    return;
+  }
   if(!c)c={id:uid(),ts:Date.now()};
   c.vid=vid;c.url=url;c.title=$('#mk-title').value.trim()||c.title||('영상 '+(cats.length+(isNew?1:0)));
   /* 기존 문장 매칭: 영어가 같으면 유지 → 같은 순번이면 수정으로 간주 → 나머지는 새 문장 */
